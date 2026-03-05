@@ -43,8 +43,11 @@
             </div>
 
             <div class="modal-actions">
-                <button class="submit-btn" @click="submitForm">Submit</button>
-                <button class="close-btn" @click="$emit('close')">Close</button>
+                <button class="submit-btn" @click="submitForm" :disabled="isSubmitting">
+                    <span v-if="isSubmitting" class="spinner"></span>
+                    {{ isSubmitting ? 'Submitting...' : 'Submit' }}
+                </button>
+                <button class="close-btn" @click="$emit('close')" :disabled="isSubmitting">Close</button>
             </div>
         </div>
     </div>
@@ -58,13 +61,13 @@ const props = defineProps({
     questions: Array
 });
 
-const emit = defineEmits(['close']);
+const emit = defineEmits(['close', 'submit']);
 
 const answers = ref(new Array(10).fill(null));
 const openAnswers = ref({ likes: '', improvements: '' });
+const isSubmitting = ref(false);
 
-// Replace with your deployed Google Apps Script URL
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx_EXAMPLE_URL_PLACEHOLDER/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwNmzVoZls1Lh2q9RnxUHnEhEC6PWGLHOOIeL1E5axdWixkqdYIQQOY1F5oRla3lGgx/exec";
 
 watch(() => props.show, (val) => {
     if (val) {
@@ -90,6 +93,9 @@ const calculateSusScore = () => {
 };
 
 const submitForm = async () => {
+    if (isSubmitting.value) return;
+    isSubmitting.value = true;
+
     const susScore = calculateSusScore();
 
     const result = {
@@ -101,19 +107,19 @@ const submitForm = async () => {
         feedback: openAnswers.value
     };
 
-    // 1. Send to Google Sheets (Fire and forget or await)
     try {
         await fetch(GOOGLE_SCRIPT_URL, {
             method: "POST",
-            mode: "no-cors", // Important for Google Apps Script simple triggers
+            mode: "no-cors", // Wichtig für Google Apps Script
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(result)
         });
     } catch (e) {
-        console.error("Logging failed", e);
+        console.error("Submission failed", e);
+    } finally {
+        isSubmitting.value = false;
+        emit('submit'); // Signalisiert Erfolg an App.vue für den Toast
     }
-
-    emit('close');
 };
 </script>
 
@@ -286,10 +292,30 @@ button {
 .submit-btn {
     background-color: #42b983;
     color: white;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .close-btn {
     background-color: #eee;
     color: #333;
+}
+
+.spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: spin 1s ease-in-out infinite;
+    margin-right: 8px;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
 }
 </style>

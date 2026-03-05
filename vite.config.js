@@ -3,6 +3,6 @@ import { defineConfig } from 'vite'
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/BA-Worth Maps/', // REPLACE 'worth-map-tool' with your actual repo name!
+  base: '/',
   plugins: [vue()]
 })

@@ -9,6 +9,13 @@
       @reset="handleReset" @zoom="triggerZoom" @zoom-to-fit="handleZoomToFit" @toggle-tasks="toggleTasks"
       @toggle-sus="toggleSus" />
 
+    <!-- SUS Success Toast -->
+    <Transition name="fade">
+      <div v-if="susSuccessMessage" class="sus-success-toast">
+        {{ susSuccessMessage }}
+      </div>
+    </Transition>
+
     <div class="main-layout">
       <!-- 1. & 5. Zentrale Canvas (Responsive) -->
       <div class="canvas-wrapper">
@@ -39,7 +46,7 @@
   </div>
 
   <!-- Phase 7: SUS Modal (Optional) -->
-  <AppSusModal :show="showSusModal" :questions="susQuestions" @close="showSusModal = false" />
+  <AppSusModal :show="showSusModal" :questions="susQuestions" @close="showSusModal = false" @submit="handleSusSubmit" />
 </template>
 
 <script setup>
@@ -94,6 +101,7 @@ const { lastSaved, status: saveStatus } = useAutoSave(scenarios, currentScenario
 const activeScenario = ref(null);
 const showTasksOverlay = ref(false);
 const showSusModal = ref(false);
+const susSuccessMessage = ref(null);
 
 const evalScenarios = [
   {
@@ -242,6 +250,14 @@ const toggleTasks = () => {
     // Start first task if none active
     activeScenario.value = evalScenarios[0];
   }
+};
+
+const handleSusSubmit = () => {
+  susSuccessMessage.value = "Successfully submitted, thank you for participating and for your time!";
+  setTimeout(() => {
+    susSuccessMessage.value = null;
+    showSusModal.value = false;
+  }, 5000);
 };
 
 const toggleSus = () => {
@@ -553,5 +569,30 @@ html {
   background-color: #21262D;
   border-bottom-color: #30363D;
   color: #E6E8EB;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.5s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.sus-success-toast {
+  position: absolute;
+  top: 15%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #28a745;
+  color: white;
+  padding: 15px 25px;
+  border-radius: 8px;
+  font-weight: bold;
+  z-index: 3100;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  text-align: center;
 }
 </style>
