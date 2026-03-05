@@ -2,12 +2,6 @@
     <header class="toolbar" :class="currentMode">
         <div class="brand-container">
             <div class="brand">Worth Mapper</div>
-            <div v-if="saveStatus !== 'idle'" class="save-indicator">
-                <span v-if="saveStatus === 'saving'" class="status-saving">Saving changes...</span>
-                <span v-else-if="saveStatus === 'saved (local)'" class="last-saved">Saved locally</span>
-                <span v-else-if="saveStatus === 'error'" class="status-error">Save Error!</span>
-                <span v-else-if="lastSaved" class="last-saved">Saved! Last updated: {{ lastSaved }}</span>
-            </div>
         </div>
 
         <div class="center-controls">
@@ -65,9 +59,7 @@ defineProps({
     searchQuery: String,
     canUndo: Boolean,
     canRedo: Boolean,
-    showTutorial: Boolean,
-    lastSaved: String,
-    saveStatus: String
+    showTutorial: Boolean
 });
 
 const emit = defineEmits([

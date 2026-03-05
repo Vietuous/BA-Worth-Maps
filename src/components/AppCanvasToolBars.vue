@@ -17,7 +17,7 @@
                                 </button>
                             </div>
                         </div>
-                        <!-- Pfeil zwischen den Ebenen -->
+                        <!-- Arrow between layers -->
                         <div v-if="index < filterGroups.length - 1" class="separator">→</div>
                     </template>
                 </div>
@@ -31,7 +31,7 @@
         <div class="panel-wrapper" :class="{ collapsed: !isActionsPanelOpen }">
             <div class="toolbar-panel actions-panel">
                 <button class="action-btn" @click="$emit('toggle-tutorial')" :class="{ active: showTutorial }"
-                    title="Tutorial umschalten">
+                    title="Toggle Tutorial">
                     {{ showTutorial ? 'Hide Tutorial' : 'Show Tutorial' }}
                 </button>
 
@@ -120,9 +120,7 @@ const layerCounts = computed(() => {
     justify-content: flex-end;
     gap: 20px;
     padding-right: 0;
-    /* Removed padding to attach to right edge */
     align-items: flex-start;
-    /* Fix: Prevent panels from stretching to same height */
     pointer-events: none;
 }
 
@@ -222,7 +220,6 @@ const layerCounts = computed(() => {
 .action-btn:focus {
     outline: none;
     box-shadow: none;
-    /* Fix: Remove persistent glow after click */
 }
 
 .action-btn:hover {
@@ -305,7 +302,6 @@ const layerCounts = computed(() => {
 
 .filter-pill {
     padding: 4px 12px;
-    /* Enlarged padding */
     font-size: 0.75rem;
     border: 1px solid transparent;
     background: #f0f2f5;
@@ -313,7 +309,6 @@ const layerCounts = computed(() => {
     cursor: pointer;
     color: #666;
     min-width: 40px;
-    /* Enlarged min-width */
     display: flex;
     align-items: center;
     gap: 6px;
@@ -341,21 +336,18 @@ const layerCounts = computed(() => {
 .filter-pill.feature.active,
 .filter-pill.feature_req.active {
     background-color: #9C27B0;
-    /* Feature Purple */
     border-color: #9C27B0;
 }
 
 .filter-pill.quality.active,
 .filter-pill.quality_req.active {
     background-color: #2E7D32;
-    /* Quality Green */
     border-color: #2E7D32;
 }
 
 .filter-pill.hoe.active,
 .filter-pill.hoe_req.active {
     background-color: #F44336;
-    /* HOE Red */
     border-color: #F44336;
 }
 
@@ -444,7 +436,7 @@ const layerCounts = computed(() => {
     background: #555;
 }
 
-/* Dark Mode for Right Toolbar Zipfel */
+/* Dark Mode for Right Toolbar Tab */
 :global(.dark-mode) .actions-panel+.drawer-toggle-btn {
     background-color: #161B22;
     border-color: #30363D;

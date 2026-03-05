@@ -4,7 +4,7 @@
     { 'highlight-active': isHighlightActive },
     { 'dark-mode': isDarkMode }
   ]">
-    <!-- D3 wird das SVG hier einfügen -->
+    <!-- D3 will insert the SVG here -->
 
     <!-- Evaluation Mode Vignette -->
     <div v-if="mode === 'evaluation'" class="vignette-overlay"></div>
@@ -65,7 +65,7 @@ import { runSmartLayout } from "./layoutAlgorithms";
 import { useGraphData } from "./useGraphData";
 import { getConnectedPath, getDirectionalNodes } from "./useGraphTraversal";
 import { resolveOverlaps } from "./useLayout";
-import { safeGetColor, safeGetNodeHeight, safeGetNodeWidth, safeLevels } from "./useStyling";
+import { linkPalette, safeGetColor, safeGetNodeHeight, safeGetNodeWidth, safeLevels } from "./useStyling";
 import { checkFullChain, countFullChains, useTutorial } from "./useTutorial";
 import { useValidation } from "./useValidation";
 
@@ -109,28 +109,29 @@ let nodeSelection = null;
 let dragHandler = null;
 let connectionDragHandler = null;
 let tempLine = null;
+let containerWidth = 0;
+let containerHeight = 0;
+let linkPathsVisible = null;
+let linkPathsHit = null;
+let quadtree = null; // For performant node lookups
 const mousePosition = ref({ x: 0, y: 0 });
 const isInitializing = ref(false); // Fix: Prevent recursive updates during init
-const pendingConnectionSource = ref(null); // Für "Verbindung starten" via Menü
+const isInternalUpdate = ref(false); // Fix: Prevent recursive updates from validation
+const pendingConnectionSource = ref(null); // For "Start Connection" via menu
 const validationMsg = ref(null);
 const screenMousePosition = ref({ x: 0, y: 0 });
 const currentZoomTransform = ref(d3.zoomIdentity);
 const editingNode = ref(null);
 const graphUpdateTrigger = ref(0);
+let lastEmittedStats = null;
+let statsTimeout = null;
 
-// Supported colors for links (must match AppContextMenu)
-const linkColors = [
-  '#F44336', '#E91E63', '#9C27B0', '#673AB7',
-  '#3F51B5', '#2196F3', '#03A9F4', '#00BCD4',
-  '#009688', '#4CAF50', '#8BC34A', '#CDDC39',
-  '#FFEB3B', '#FFC107', '#FF9800', '#FF5722',
-  '#795548', '#9E9E9E', '#607D8B', '#ffffff'
-];
+const linkColors = linkPalette;
 
-// State für UI Overlays
+// State for UI Overlays
 const contextMenu = ref({ visible: false, x: 0, y: 0, item: null, type: null, view: 'main' });
 const highlightedNodes = ref(new Set());
-const selectedNodeIds = ref(new Set()); // Für Multi-Selektion (Cluster)
+const selectedNodeIds = ref(new Set()); // For Multi-Selection (Cluster)
 const isHighlightActive = ref(false);
 const isHoverHighlight = ref(false);
 const initialViewParsed = ref(false);
@@ -206,7 +207,7 @@ const {
   createNode,
 } = useGraphData();
 
-// WICHTIG: Wir übergeben die Ref direkt an useValidation
+// IMPORTANT: We pass the Ref directly to useValidation
 const {
   nodeWarnings,
   nodeStatus,
@@ -215,7 +216,7 @@ const {
   validateGraph,
 } = useValidation(_graphData);
 
-// Helper um sicher auf graphData zuzugreifen (Tiefe Kopie für D3)
+// Helper to safely access graphData (Deep copy for D3)
 const getRawData = () => {
   const data = isRef(_graphData) ? _graphData.value : _graphData;
   try {
@@ -224,7 +225,7 @@ const getRawData = () => {
       links: JSON.parse(JSON.stringify(data?.links || []))
     };
   } catch (e) {
-    console.error("Fehler beim Kopieren der Daten:", e);
+    console.error("Error copying data:", e);
     return { nodes: [], links: [] };
   }
 };
@@ -293,13 +294,13 @@ const isLayerVisible = (layerId) => {
 };
 
 // --- SVG Controls Logic (+ Buttons) ---
-const updateControls = () => {
+const drawControls = () => {
   if (!svg) return;
 
   const controlsLayer = svg.select(".controls-layer");
   if (controlsLayer.empty()) return;
 
-  // Nur im Map Mode anzeigen
+  // Only show in Map Mode
   if (props.mode !== 'map') {
     controlsLayer.selectAll("*").remove();
     return;
@@ -321,13 +322,8 @@ const updateControls = () => {
 
   const buttonData = safeLevels.filter(l => showLayer[l.id]).map(level => {
     const rawY = centerY + (1.5 - level.index) * 150;
-    const layerNodes = simulation ? simulation.nodes().filter(n => n.type === level.id) : [];
-    let rawX = 0;
-    if (layerNodes.length > 0) {
-      const maxX = Math.max(...layerNodes.map(n => (n.fx ?? n.x) || 0));
-      rawX = maxX + 160;
-    }
-    return { id: level.id, x: rawX, y: rawY, label: level.label };
+    // X is now calculated separately in updateControlPositions to save performance
+    return { id: level.id, y: rawY, label: level.label };
   });
 
   const buttons = controlsLayer.selectAll("g.add-btn-group")
@@ -344,10 +340,10 @@ const updateControls = () => {
 
   enter.append("circle")
     .attr("r", 12)
-    .attr("fill", "transparent") // Hit area
+    .attr("fill", "transparent")
     .attr("stroke", d => safeGetColor(d.id))
     .attr("stroke-width", 2)
-    .attr("stroke-opacity", 0.7); // Sichtbarer (war 0.4)
+    .attr("stroke-opacity", 0.7); // More visible (was 0.4)
 
   enter.append("text")
     .text("+")
@@ -358,11 +354,10 @@ const updateControls = () => {
     .attr("font-family", "Arial, sans-serif") // Ensure consistent rendering
     .attr("font-size", "16px")
     .attr("font-weight", "bold")
-    .attr("opacity", 0.9); // Sichtbarer (war 0.6)
+    .attr("opacity", 0.9); // More visible (was 0.6)
 
   const merge = buttons.merge(enter);
   merge
-    .attr("transform", d => `translate(${d.x}, ${d.y})`)
     .classed("shake-animation", d => shakingNodeId.value === d.id); // Apply shake class
 
   // Update colors/opacity if needed
@@ -370,6 +365,37 @@ const updateControls = () => {
   merge.select("text").attr("fill", d => safeGetColor(d.id));
 
   buttons.exit().remove();
+
+  // Initial Positioning
+  updateControlPositions();
+};
+
+const updateControlPositions = () => {
+  if (!svg) return;
+
+  // Performance Optimization: Calculate max X for all layers in one pass
+  const layerMaxX = {};
+  if (simulation) {
+    const nodes = simulation.nodes();
+    for (let i = 0; i < nodes.length; i++) {
+      const n = nodes[i];
+      const x = (n.fx ?? n.x) || 0;
+      if (layerMaxX[n.type] === undefined || x > layerMaxX[n.type]) {
+        layerMaxX[n.type] = x;
+      }
+    }
+  }
+
+  const controlsLayer = svg.select(".controls-layer");
+  // Nur Transformation updaten, keine DOM-Elemente erzeugen/löschen
+  // Only update transformation, do not create/delete DOM elements
+  controlsLayer.selectAll("g.add-btn-group").attr("transform", function (d) {
+    let rawX = 0;
+    if (layerMaxX[d.id] !== undefined) {
+      rawX = layerMaxX[d.id] + 160;
+    }
+    return `translate(${rawX}, ${d.y})`;
+  });
 };
 
 const lastAddTimestamp = ref(0);
@@ -413,8 +439,8 @@ const updateSpotlight = () => {
 
   overlay.style("pointer-events", "auto");
 
-  const w = mapContainer.value.clientWidth;
-  const h = mapContainer.value.clientHeight;
+  const w = containerWidth || mapContainer.value.clientWidth;
+  const h = containerHeight || mapContainer.value.clientHeight;
   const transform = currentZoomTransform.value;
 
   // Outer rect (counter-clockwise) covering the whole viewport
@@ -441,10 +467,11 @@ const updateSpotlight = () => {
 };
 
 const updateGraph = () => {
-  if (isInitializing.value) return; // Fix: Skip updates during initialization
+  if (isInitializing.value) return;
+  if (isInternalUpdate.value) return;
   if (!svg) return;
 
-  // WICHTIG: Selektionen immer frisch von den Layern holen
+  // IMPORTANT: Always get selections fresh from layers
   const linkGroup = svg.select(".links-layer");
   const nodeGroup = svg.select(".nodes-layer");
   const gridLayer = svg.select(".grid-layer");
@@ -453,13 +480,16 @@ const updateGraph = () => {
   if (linkGroup.empty() || nodeGroup.empty()) return;
 
   try {
+    isInternalUpdate.value = true;
     validateGraph();
   } catch (e) {
     console.error("Validation error:", e);
+  } finally {
+    isInternalUpdate.value = false;
   }
 
   const rawData = getRawData();
-  // Filter: Wir behalten alle Daten für die Simulation, blenden aber visuell aus
+  // Filter: Keep all data for simulation, but hide visually if needed
   let nodes = rawData.nodes;
   let links = rawData.links;
 
@@ -469,7 +499,7 @@ const updateGraph = () => {
     links = links.filter(l => nodeIds.has(l.source.id || l.source) && nodeIds.has(l.target.id || l.target));
   }
 
-  // Positionen aus der laufenden Simulation übernehmen, um Reset zu verhindern
+  // Preserve positions from running simulation to prevent reset
   if (simulation) {
     const oldNodes = new Map(simulation.nodes().map(n => [n.id, n]));
     const h = mapContainer.value?.clientHeight || 800;
@@ -482,7 +512,7 @@ const updateGraph = () => {
         n.y = old.y;
         n.vx = old.vx;
         n.vy = old.vy;
-        n.fx = old.fx; // Fix: Position fixieren, damit Knoten nicht springen
+        n.fx = old.fx; // Fix: Fix position so nodes don't jump
         n.fy = old.fy;
       }
 
@@ -510,7 +540,11 @@ const updateGraph = () => {
               n.fy = layerCenter;
             }
 
-            // Koordinaten synchronisieren, um Animation zu vermeiden
+            // Cache dimensions for performance in tick/intersection
+            n._width = safeGetNodeWidth(n);
+            n._height = safeGetNodeHeight(n);
+
+            // Sync coordinates to avoid animation
             n.x = n.fx;
             n.y = n.fy;
           }
@@ -520,11 +554,11 @@ const updateGraph = () => {
 
   }
 
-  // Initial View: Kamera auf linkeste Spalte zentrieren (nur einmal beim Start)
+  // Initial View: Center camera on leftmost column (only once at start)
   if (!initialViewParsed.value && nodes.length > 0 && svg && zoomBehavior) {
     const minX = d3.min(nodes, n => n.x) || 0;
-    // Verschiebe Kamera so, dass Ebenennamen (x=-480) sichtbar sind.
-    // Translate X = 600 sorgt dafür, dass x=-480 bei Screen X=120 liegt.
+    // Move camera so that layer names (x=-480) are visible.
+    // Translate X = 600 ensures that x=-480 is at Screen X=120.
     svg.call(zoomBehavior.transform, d3.zoomIdentity.translate(600, 0));
     initialViewParsed.value = true;
 
@@ -546,23 +580,32 @@ const updateGraph = () => {
     console.warn("Tutorial update failed:", e);
   }
 
-  emit('graph-stats', {
+  const newStats = {
     nodeCounts,
     hasFullChain: checkFullChain(nodes, links),
     fullChainCount: countFullChains(nodes, links),
     validationStats: { ...validationStats }
-  });
+  };
+
+  // Debounce stats emission to prevent recursive update loops in parent
+  if (statsTimeout) clearTimeout(statsTimeout);
+  statsTimeout = setTimeout(() => {
+    if (JSON.stringify(lastEmittedStats) !== JSON.stringify(newStats)) {
+      emit('graph-stats', newStats);
+      lastEmittedStats = newStats;
+    }
+  }, 500); // Increased debounce to prevent recursive updates
 
   graphUpdateTrigger.value++;
 
-  // 0. Zonen zeichnen (Jetzt auch in Sketch sichtbar für Orientierung)
+  // 0. Draw Zones (Visible in Sketch for orientation)
   if (props.mode !== 'evaluation' || props.analyzingView === 'zones') {
     // Cleanup Axis elements if switching from Axis view
     gridLayer.selectAll(".axis-element").remove();
 
     const h = mapContainer.value?.clientHeight || 800;
     const centerY = h / 2;
-    const zoneWidth = 40000; // Ausreichend breit
+    const zoneWidth = 40000; // Sufficiently wide
     const xStart = -zoneWidth / 2;
     const xEnd = zoneWidth / 2;
 
@@ -599,13 +642,13 @@ const updateGraph = () => {
       .style("pointer-events", "none")
       .style("transition", "opacity 0.3s ease");
 
-    // Linien relativ zur Mitte: centerY - 150, centerY, centerY + 150
+    // Lines relative to center: centerY - 150, centerY, centerY + 150
     // HOE < -150 < Quality < 0 < Feature < 150 < NSHC
     const lines = [
       { y: centerY - 150, style: 'dashed' },
       { y: centerY, style: 'dashed' },
-      { y: centerY + 150, style: 'solid' }, // NSHC Trennlinie Oben
-      { y: centerY + 300, style: 'solid' }, // NSHC Trennlinie Unten (jetzt durchgezogen)
+      { y: centerY + 150, style: 'solid' }, // NSHC Separator Top
+      { y: centerY + 300, style: 'solid' }, // NSHC Separator Bottom (now solid)
       { y: centerY + 450, style: 'dashed' },
       { y: centerY + 600, style: 'dashed' }
     ];
@@ -631,11 +674,11 @@ const updateGraph = () => {
       .attr("stroke-dasharray", d => d.style === 'dashed' ? "5,5" : null)
       .attr("opacity", 0.8);
 
-    // Calculate fixed X positions for sticky labels
+    // Calculate fixed X positions for sticky labels (Layer Names)
     const transform = d3.zoomTransform(svg.node());
     const fixedLayerX = (50 - transform.x) / transform.k; // 50px margin from left
 
-    // Labels (Links positioniert, aber im Zoom-Bereich)
+    // Labels (Positioned left, but within zoom range)
     const labels = [
       { text: "Human-Oriented Elements", y: centerY - 225 },
       { text: "Quality", y: centerY - 75 },
@@ -685,6 +728,9 @@ const updateGraph = () => {
       drawGroupLabel("Requested Worth", "requested", centerY + 525);
     }
 
+    // Update Controls Structure (Add/Remove Buttons)
+    drawControls();
+
   } else if (props.mode === 'evaluation' && props.analyzingView === 'axis') {
     // 5. Butterfly Mode Visuals (Symmetry Axis)
     gridLayer.selectAll("*").remove(); // Clear zones if switching to axis
@@ -706,7 +752,7 @@ const updateGraph = () => {
       .text("VALUE EXCHANGE AXIS");
   }
 
-  // 1. Simulation füttern
+  // 1. Feed Simulation
   if (simulation) {
     simulation.nodes(nodes);
     simulation.force("link").links(links);
@@ -717,7 +763,7 @@ const updateGraph = () => {
     simulation.alpha(0.3).restart();
   }
 
-  // 2. Links binden
+  // 2. Bind Links
   linkSelection = linkGroup
     .selectAll("g.link-wrapper")
     .data(links, (d) => (d.source.id || d.source) + "-" + (d.target.id || d.target));
@@ -742,6 +788,13 @@ const updateGraph = () => {
       return g;
     }
   );
+
+  // Cache selections for tick performance
+  linkPathsVisible = linkSelection.select(".link-visible");
+  linkPathsHit = linkSelection.select(".link-hit-area");
+
+  // Performance: Build quadtree for fast node searching (hover, click, drag)
+  quadtree = d3.quadtree().x(d => d.x).y(d => d.y).addAll(nodes);
 
   // Update attributes
   linkSelection.select(".link-visible")
@@ -795,14 +848,14 @@ const updateGraph = () => {
       };
     });
 
-  // Connectivity Check für Styling (WS vs WM)
+  // Connectivity Check for Styling (WS vs WM)
   const connectedNodeIds = new Set();
   links.forEach(l => {
     connectedNodeIds.add(l.source.id || l.source);
     connectedNodeIds.add(l.target.id || l.target);
   });
 
-  // 3. Nodes binden
+  // 3. Bind Nodes
   nodeSelection = nodeGroup
     .selectAll("g.node")
     .data(nodes, (d) => d.id);
@@ -815,11 +868,11 @@ const updateGraph = () => {
         .on("mouseenter", (event, d) => handleNodeHover(d, true))
         .on("mouseleave", (event, d) => handleNodeHover(d, false));
 
-      // Rechteck
+      // Rectangle
       g.append("rect")
         .attr("fill", "#fff")
         .attr("stroke-width", 3)
-        .style("pointer-events", "all"); // WICHTIG für Dragging
+        .style("pointer-events", "all"); // IMPORTANT for Dragging
 
       // Text Container
       const fo = g.append("foreignObject")
@@ -864,7 +917,7 @@ const updateGraph = () => {
         }
       });
 
-      // Drag Handler direkt beim Erstellen binden
+      // Bind Drag Handler immediately upon creation
       if (dragHandler) g.call(dragHandler);
 
       // Separate Drag Handler for Connection Handle
@@ -874,7 +927,7 @@ const updateGraph = () => {
     }
   );
 
-  // Attribute aktualisieren (für alle)
+  // Update attributes (for all)
   nodeSelection.select("rect")
     .attr("width", (d) => safeGetNodeWidth(d))
     .attr("height", (d) => safeGetNodeHeight(d))
@@ -885,7 +938,7 @@ const updateGraph = () => {
     .attr("stroke-width", 3)
     .attr("stroke", (d) => d.customColor || safeGetColor(d.type))
     .attr("stroke-opacity", (d) => !connectedNodeIds.has(d.id) ? 0.6 : 1)
-    // Methodische Visualisierung (A, B, C, D)
+    // Methodological Visualization (A, B, C, D)
     .attr("stroke-dasharray", (d) => {
       if (props.mode === 'sketch') return !connectedNodeIds.has(d.id) ? "8,4" : "none";
       const status = nodeStatus.get(d.id);
@@ -909,12 +962,12 @@ const updateGraph = () => {
       .style("opacity", (d) => (nodeStatus.get(d.id)?.level === 'C') ? 0.5 : 1);
   }
 
-  // Selektions-Rahmen (Multi-Select)
+  // Selection Frame (Multi-Select)
   nodeSelection.select("rect")
     .attr("stroke", (d) => selectedNodeIds.value.has(d.id) ? "#2c3e50" : (d.customColor || safeGetColor(d.type)))
     .style("filter", (d) => selectedNodeIds.value.has(d.id) ? "drop-shadow(0 0 6px rgba(66, 185, 131, 0.6))" : null);
 
-  // Filter-Klasse auf die Gruppe anwenden (damit auch Text/Icons verblassen)
+  // Apply filter class to group (so text/icons also fade)
   nodeSelection.attr("class", (d) => `node type-${d.type} ${!isLayerVisible(d.type) ? 'layer-filtered' : ''}`);
 
   // Tutorial Highlight Class
@@ -940,7 +993,7 @@ const updateGraph = () => {
   nodeSelection.on("click", (event, d) => {
     event.stopPropagation();
 
-    // Feature: Verbindung starten (via Kontextmenü)
+    // Feature: Start connection (via context menu)
     if (pendingConnectionSource.value) {
       const sourceId = pendingConnectionSource.value;
       if (sourceId !== d.id && checkConnection({ id: sourceId, type: getRawData().nodes.find(n => n.id === sourceId)?.type }, d, props.mode)) {
@@ -957,14 +1010,14 @@ const updateGraph = () => {
     }
 
     if (props.mode === "evaluation") {
-      isHoverHighlight.value = false; // Klick fixiert das Highlight
+      isHoverHighlight.value = false; // Click fixes the highlight
       selectNodeForPresentation(d);
     } else {
-      // Multi-Selektion Logik
+      // Multi-Selection Logic
       if (event.shiftKey) {
         if (selectedNodeIds.value.has(d.id)) selectedNodeIds.value.delete(d.id);
         else selectedNodeIds.value.add(d.id);
-        updateGraph(); // Neu zeichnen für Rahmen
+        updateGraph(); // Redraw for frame
       } else {
         selectedNodeIds.value.clear();
         selectedNodeIds.value.add(d.id);
@@ -1034,7 +1087,7 @@ function enterEditMode(nodeSelection, d) {
       if (!d.name.trim()) d.name = "New Node";
       updateNode(d.id, { name: d.name }); // Persist name change
       editingNode.value = null;
-      updateGraph(); // Update für dynamische Breite
+      updateGraph(); // Update for dynamic width
       div.html(d.name).style("display", "flex");
       d3.select(this).remove();
     })
@@ -1045,7 +1098,7 @@ function enterEditMode(nodeSelection, d) {
     });
 
   input.node().focus({ preventScroll: true });
-  input.node().select(); // Text direkt markieren zum Überschreiben
+  input.node().select(); // Select text directly for overwriting
 }
 
 const zoomToPath = () => {
@@ -1073,9 +1126,9 @@ const zoomToPath = () => {
   svg.transition().duration(750).call(zoomBehavior.transform, transform);
 };
 
-// 1. Temporäre Hervorhebung (Hover)
+// 1. Temporary Highlight (Hover)
 function handleNodeHover(d, isHovering) {
-  // Wenn ein Klick-Highlight aktiv ist (nicht Hover), dann Hover ignorieren
+  // If a click highlight is active (not hover), ignore hover
   if (props.mode === 'evaluation') return; // Disable hover highlight in Evaluation Mode
   if (isHighlightActive.value && !isHoverHighlight.value) return;
 
@@ -1101,7 +1154,7 @@ function highlightPath(targetNode) {
 
   highlightedNodes.value = visited;
 
-  // Wenn Knoten isoliert ist (keine Verbindungen), kein Highlight/Dimming aktivieren
+  // If node is isolated (no connections), do not activate highlight/dimming
   if (visited.size <= 1) {
     isHighlightActive.value = false;
     highlightedNodes.value.clear();
@@ -1154,8 +1207,8 @@ function updateVisualsForHighlight() {
 
 // Helper: Calculate intersection point on target node border for arrows
 const getNodeIntersection = (source, target) => {
-  const w = safeGetNodeWidth(target) / 2;
-  const h = safeGetNodeHeight(target) / 2;
+  const w = (target._width || safeGetNodeWidth(target)) / 2;
+  const h = (target._height || safeGetNodeHeight(target)) / 2;
 
   const dx = target.x - source.x;
   const dy = target.y - source.y;
@@ -1183,6 +1236,8 @@ onMounted(() => {
 
   const width = mapContainer.value.clientWidth;
   const height = mapContainer.value.clientHeight;
+  containerWidth = width;
+  containerHeight = height;
 
   svg = d3.select(mapContainer.value)
     .append("svg")
@@ -1210,7 +1265,7 @@ onMounted(() => {
       const [x, y] = d3.pointer(event, interactionNode);
       mousePosition.value = { x, y };
 
-      // Screen Position für Tooltip
+      // Screen Position for Tooltip
       const [sx, sy] = d3.pointer(event, mapContainer.value);
       screenMousePosition.value = { x: sx, y: sy };
 
@@ -1226,12 +1281,9 @@ onMounted(() => {
             .attr("opacity", 1);
 
           // Validation Check for Pending Connection
-          const currentNodes = simulation ? simulation.nodes() : [];
-          const target = currentNodes.find(n => {
-            const nw = safeGetNodeWidth(n);
-            const nh = safeGetNodeHeight(n);
-            return Math.abs(n.x - x) < nw / 2 + 20 && Math.abs(n.y - y) < nh / 2 + 20 && n.id !== sourceNode.id;
-          });
+          // Use quadtree for faster lookup. Search radius of 50px to find nearest node.
+          const target = quadtree ? quadtree.find(x, y, 50) : null;
+
 
           if (target) {
             const isValid = checkConnection(sourceNode, target, props.mode);
@@ -1243,7 +1295,7 @@ onMounted(() => {
       }
     });
 
-  // Marker für Pfeilspitzen
+  // Markers for arrowheads
   const defs = svg.append("defs");
 
   // Generate markers for all supported colors + default
@@ -1265,7 +1317,7 @@ onMounted(() => {
 
   const g = svg.append("g").attr("class", "graph-content");
   const gridLayer = g.append("g").attr("class", "grid-layer");
-  const controlsLayer = g.append("g").attr("class", "controls-layer"); // Layer für + Buttons (Hintergrund)
+  const controlsLayer = g.append("g").attr("class", "controls-layer"); // Layer for + Buttons (Background)
   const linkLayer = g.append("g").attr("class", "links-layer");
   const nodeLayer = g.append("g").attr("class", "nodes-layer");
   const interactionLayer = g.append("g").attr("class", "interaction-layer");
@@ -1274,7 +1326,7 @@ onMounted(() => {
   // Appended after graph content to sit on top
   svg.append("path").attr("class", "spotlight-path").attr("fill-rule", "evenodd");
 
-  // Temporäre Linie für Verbindungen
+  // Temporary line for connections
   tempLine = interactionLayer.append("line")
     .attr("stroke", "#999")
     .attr("stroke-width", 2)
@@ -1310,9 +1362,9 @@ onMounted(() => {
     });
   };
 
-  // Simulation starten
+  // Start Simulation
   simulation = d3.forceSimulation([])
-    // Keine "Ragdoll" Physik (Charge 0, Link Strength 0)
+    // No "Ragdoll" physics (Charge 0, Link Strength 0)
     .force("link", d3.forceLink([]).id((d) => d.id).distance(300).strength(0.1))
     .force("charge", d3.forceManyBody().strength(-800))
     .force("x", d3.forceX(0).strength(0.02))
@@ -1321,13 +1373,20 @@ onMounted(() => {
     .force("rowSep", rowSeparationForce) // Use custom row separation
     .velocityDecay(0.6); // Keep decay to stop momentum quickly
 
-  // Forces werden in updateGraph() je nach Modus gesetzt
+  // Forces are set in updateGraph() depending on mode
 
+  let tickCounter = 0;
   simulation.on("tick", () => {
+    tickCounter++;
+
     // Update Button Positions on Tick (smooth movement)
-    updateControls();
-    updateMinimap();
+    // Throttle Controls (Performance Optimization: only every 4th frame)
+    if (tickCounter % 4 === 0) updateControlPositions();
+
     updateSpotlight(); // Update spotlight holes as nodes move
+
+    // Throttle Minimap (Performance Optimization: only every 4th frame)
+    if (tickCounter % 4 === 0) updateMinimap();
 
     // Use the selections we updated in updateGraph
     if (linkSelection && nodeSelection) {
@@ -1343,11 +1402,12 @@ onMounted(() => {
         return `M${source.x},${source.y} L${end.x},${end.y}`;
       };
 
-      linkSelection.select(".link-visible").attr("d", linkPathGenerator);
-      linkSelection.select(".link-hit-area").attr("d", linkPathGenerator);
+      // Use cached selections to avoid DOM query overhead
+      if (linkPathsVisible) linkPathsVisible.attr("d", linkPathGenerator);
+      if (linkPathsHit) linkPathsHit.attr("d", linkPathGenerator);
 
       nodeSelection.attr("transform", (d) => {
-        // Keine Boundary Constraints mehr, da Map zoombar/pannbar ist
+        // No more boundary constraints, as map is zoomable/pannable
         return `translate(${d.x},${d.y})`;
       });
     }
@@ -1360,7 +1420,7 @@ onMounted(() => {
     .on("start", (event, d) => {
       if (!event.active) simulation.alphaTarget(0.3).restart();
 
-      // Startposition speichern für Swap-Logik
+      // Save start position for swap logic
       d.startX = d.fx ?? d.x;
       d.startY = d.fy ?? d.y;
 
@@ -1392,7 +1452,7 @@ onMounted(() => {
         if (nodeEl) d3.select(nodeEl).classed("dragging", true);
         d.fx = d.x;
         d.fy = d.y;
-        d.lastFx = d.fx; // Für Delta-Berechnung
+        d.lastFx = d.fx; // For delta calculation
         d.lastFy = d.fy;
       }
     })
@@ -1437,25 +1497,17 @@ onMounted(() => {
       if (isDrawing) {
         isDrawing = false;
         tempLine.attr("opacity", 0);
-        // FIX: Nutze aktuelle Simulations-Knoten für korrekte Koordinaten beim Hit-Testing
-        const currentNodes = simulation ? simulation.nodes() : [];
         const [mx, my] = d3.pointer(event, interactionLayer.node());
-        const target = currentNodes.find((n) => {
-          const dx = n.x - mx;
-          const dy = n.y - my;
-          // Größerer Trefferbereich
-          const w = safeGetNodeWidth(n);
-          const h = safeGetNodeHeight(n);
-          return Math.abs(dx) < w / 2 + 20 && Math.abs(dy) < h / 2 + 20 && n.id !== d.id;
-        });
+        // Use quadtree for faster lookup. Search radius of 50px.
+        const target = quadtree ? quadtree.find(mx, my, 50) : null;
         if (target && checkConnection(d, target, props.mode)) {
-          addLinkToData({ source: d.id, target: target.id }); // IDs verwenden für saubere Daten
+          addLinkToData({ source: d.id, target: target.id }); // Use IDs for clean data
           nextTick(() => updateGraph());
         }
       } else {
         if (!event.active) simulation.alphaTarget(0);
 
-        // Beim Loslassen: In die Zone einrasten (Map/Analyze)
+        // On Release: Snap to zone
         // Logic is now handled during drag (snap), but ensure it here too
         const h = mapContainer.value?.clientHeight || 800;
         const level = safeLevels.find(l => l.id === d.type);
@@ -1478,7 +1530,7 @@ onMounted(() => {
         // const GRID_STEP = 160;
         // if (d.fx !== undefined) d.fx = Math.round(d.fx / GRID_STEP) * GRID_STEP;
 
-        // Swap Logic: Prüfen ob Platz belegt ist
+        // Swap Logic: Check if space is occupied
         const GRID_TOLERANCE = 20;
         const overlappingNode = simulation.nodes().find(n =>
           n.id !== d.id &&
@@ -1487,19 +1539,19 @@ onMounted(() => {
         );
 
         if (overlappingNode) {
-          // Tausche Positionen
+          // Swap positions
           overlappingNode.fx = d.startX;
           overlappingNode.fy = d.startY;
           overlappingNode.x = d.startX;
           overlappingNode.y = d.startY;
-          // d nimmt die neue Position ein (bereits gesetzt durch d.fx/d.fy)
+          // d takes the new position (already set by d.fx/d.fy)
 
           // Ensure nodes are properly distanced after swap
           resolveOverlaps(simulation.nodes());
           simulation.alpha(0.1).restart(); // Gentle restart to settle positions
         }
 
-        // Fix: Position erzwingen, damit keine Diskrepanz zwischen fx und x entsteht
+        // Fix: Force position to avoid discrepancy between fx and x
         d.x = d.fx;
         d.y = d.fy;
         d.vx = 0;
@@ -1523,14 +1575,14 @@ onMounted(() => {
         .attr("x2", d.x + w / 2).attr("y2", d.y - h / 2)
         .attr("opacity", 1);
 
-      // 2. Visuelles Feedback: Ziel-Ebene hervorheben
+      // 2. Visual Feedback: Highlight target layer
       const sourceLevel = safeLevels.find(l => l.id === d.type);
       if (sourceLevel) {
         // Valid target is usually next level (index + 1)
         const targetLevel = safeLevels.find(l => l.index === sourceLevel.index + 1);
         if (targetLevel) {
           svg.selectAll(`.layer-bg-${targetLevel.id}`)
-            .attr("opacity", 0.3); // Leuchtfarbe verstärken
+            .attr("opacity", 0.3); // Intensify glow color
         }
       }
     })
@@ -1538,39 +1590,34 @@ onMounted(() => {
       if (props.mode === "evaluation") return;
       // event.x/y are relative to the handle's parent (the node group), 
 
-      // Update Screen Position für Tooltip
+      // Update Screen Position for Tooltip
       const [sx, sy] = d3.pointer(event, mapContainer.value);
       screenMousePosition.value = { x: sx, y: sy };
 
-      // but we need global coordinates for the line.
-      // Actually d3.drag on the handle receives coordinates relative to the subject?
-      // Let's use the mouse position from the event which is usually in the container space if we use the right transform.
-      // Easier: Use d.x + event.x (if event.x is local delta) or just use the global mouse pointer.
-      // d3.drag event exposes x/y which are the subject's new coordinates.
-      // Since we didn't set a subject, it defaults to mouse position relative to container?
       // Let's use d3.pointer on the interactionLayer.
       const [mx, my] = d3.pointer(event, interactionLayer.node());
       tempLine.attr("x2", mx).attr("y2", my);
 
       // 4. Constraints Feedback: Highlight valid targets
-      const currentNodes = simulation ? simulation.nodes() : [];
       // Reset styles first
       svg.selectAll(".node rect")
         .attr("stroke", (n) => safeGetColor(n.type))
         .attr("stroke-width", 3);
 
-      const target = currentNodes.find(n => {
-        const w = safeGetNodeWidth(n);
-        const h = safeGetNodeHeight(n);
-        return Math.abs(n.x - mx) < w / 2 + 20 && Math.abs(n.y - my) < h / 2 + 20 && n.id !== d.id;
-      });
+      // Fix: Use quadtree to find target
+      const target = quadtree ? quadtree.find(mx, my, 50) : null;
 
-      if (target) {
+      if (target && target.id !== d.id) {
         const isValid = checkConnection(d, target, props.mode);
         tempLine.attr("stroke", isValid ? "#28a745" : "#dc3545");
-        svg.select(`.node rect`).filter((n) => n.id === target.id) // Select specific node rect
-          .attr("stroke", isValid ? "#28a745" : "#dc3545")
-          .attr("stroke-width", 5);
+
+        if (isValid) {
+          // Highlight valid target
+          svg.selectAll(".node").filter(n => n.id === target.id).select("rect")
+            .attr("stroke", "#28a745")
+            .attr("stroke-width", 5);
+        }
+
         validationMsg.value = isValid ? null : getValidationError(d, target);
       } else {
         tempLine.attr("stroke", "#999");
@@ -1585,36 +1632,31 @@ onMounted(() => {
       svg.selectAll(".layer-bg").attr("opacity", 0.07);
       validationMsg.value = null;
 
+      // Reset node styles
+      svg.selectAll(".node rect")
+        .attr("stroke", (n) => safeGetColor(n.type))
+        .attr("stroke-width", 3);
+
       // Find target
       const [mx, my] = d3.pointer(event, interactionLayer.node());
 
-      // Nutze die aktuellen Simulations-Knoten für korrekte Koordinaten
-      const currentNodes = simulation ? simulation.nodes() : [];
-      const target = currentNodes.find(n => {
-        const w = safeGetNodeWidth(n);
-        const h = safeGetNodeHeight(n);
-        return Math.abs(n.x - mx) < w / 2 && Math.abs(n.y - my) < h / 2 && n.id !== d.id;
-      });
-
+      // Use quadtree for faster lookup. Search radius of 50px.
+      const target = quadtree ? quadtree.find(mx, my, 50) : null;
       if (target && checkConnection(d, target, props.mode)) {
         addLinkToData({ source: d.id, target: target.id });
         nextTick(() => updateGraph());
       }
-
-      // Reset styles
-      tempLine.attr("stroke", "#999");
-      updateGraph(); // Redraws original styles
     });
 
-  // Zoom
+  // Initialize Zoom Behavior
   zoomBehavior = d3.zoom()
-    .scaleExtent([0.6, 4]) // Max Zoom Out begrenzt (0.6), damit man nicht zu weit rauszoomt
+    .scaleExtent([0.1, 2])
     .translateExtent([[-4000, -350], [5000, 1700]]) // Limit panning vertically to keep content in view
     .on("zoom", (event) => {
       g.attr("transform", event.transform);
       currentZoomTransform.value = event.transform; // Update reactive state for spotlight
 
-      // Fixierte Ebenennamen (Sticky Labels)
+      // Fixed Layer Names (Sticky Labels)
       const fixedLayerX = (50 - event.transform.x) / event.transform.k;
       g.selectAll(".layer-label").attr("x", fixedLayerX);
 
@@ -1622,7 +1664,7 @@ onMounted(() => {
       // Positioned slightly to the left of layer labels
       g.selectAll(".group-label").attr("transform", d => `translate(${fixedLayerX - 25}, ${d.y}) rotate(-90)`);
 
-      // updateControls(); // Nicht nötig bei Zoom, da Buttons im SVG-Graph sind
+      // drawControls(); // Not necessary on zoom, as buttons are in the SVG graph
       updateMinimap();
       updateSpotlight(); // Update spotlight on zoom
     });
@@ -1631,8 +1673,10 @@ onMounted(() => {
   // Resize Observer
   resizeObserver = new ResizeObserver(() => {
     if (mapContainer.value && simulation) {
-      const w = mapContainer.value.clientWidth;
-      const h = mapContainer.value.clientHeight;
+      const w = containerWidth || mapContainer.value.clientWidth;
+      const h = containerHeight || mapContainer.value.clientHeight;
+      containerWidth = w;
+      containerHeight = h;
       if (svg) svg.attr("width", w).attr("height", h);
 
       // No forces on resize for static layout
@@ -1649,6 +1693,12 @@ onMounted(() => {
   const data = getGraphData();
   if (data.nodes.length < 7) {
     initializeDefaultGraph();
+  } else {
+    // Data exists (e.g. from autosave), ensure layout is correct
+    setTimeout(() => {
+      updateGraph();
+      zoomToFit();
+    }, 250);
   }
 });
 
@@ -1687,6 +1737,7 @@ const handleMinimapClick = ({ x, y }) => {
 onUnmounted(() => {
   if (resizeObserver) resizeObserver.disconnect();
   if (simulation) simulation.stop();
+  if (statsTimeout) clearTimeout(statsTimeout);
 });
 
 watch(() => props.mode, () => {
@@ -1711,8 +1762,16 @@ watch(() => props.mode, () => {
   }
 });
 
-watch(_graphData, () => {
+watch(_graphData, (newData, oldData) => {
+  if (isInitializing.value || isInternalUpdate.value) return;
   updateGraph();
+
+  // Auto-fit if we went from empty/small to populated (loading from autosave)
+  const oldLen = oldData?.nodes?.length || 0;
+  const newLen = newData?.nodes?.length || 0;
+  if (oldLen < 2 && newLen > 2) {
+    setTimeout(zoomToFit, 150);
+  }
   // updateTutorialStep is called inside updateGraph
 }, { deep: true });
 
@@ -1732,7 +1791,7 @@ watch(() => props.showTutorial, () => {
   updateSpotlight();
 });
 
-// Watcher für Tutorial-Highlighting (Pulsieren)
+// Watcher for Tutorial Highlighting (Pulsing)
 watch(activeSpotlightNodes, () => {
   updateSpotlight();
   if (nodeSelection) {
@@ -1848,20 +1907,31 @@ const loadGraphDataHandler = (data) => {
   // 1. Lock updates to prevent watcher interference during data swap
   isInitializing.value = true;
 
-  // 2. Stop simulation but DO NOT clear nodes array to prevent flicker/ghosting
-  if (simulation) {
-    simulation.stop();
-    simulation.nodes([]); // Clear nodes to force full re-bind
+  // 2. Stop simulation temporarily
+  if (simulation) simulation.stop();
+
+  // 3. Load data into store
+  loadGraphData(data);
+
+  // 4. Check for empty data (e.g. New Draft) and populate defaults
+  const { nodes } = getRawData();
+  if (nodes.length === 0) {
+    isInitializing.value = false; // Unlock so initialize can run
+    initializeDefaultGraph();
+    return;
   }
 
-  // 3. Load data
-  loadGraphData(data);
   initialViewParsed.value = false; // Force re-center on new data load
 
-  // 4. Unlock and update on next tick
-  nextTick(() => {
+  // 5. Force update sequence
+  requestAnimationFrame(() => {
     isInitializing.value = false;
     updateGraph();
+    // Use setTimeout to allow D3 simulation a moment to tick and stabilize
+    setTimeout(() => {
+      updateGraph();
+      zoomToFit();
+    }, 50);
   });
 };
 
@@ -1960,7 +2030,7 @@ const initializeDefaultGraph = () => {
   if (!svg || !mapContainer.value) return;
   if (isInitializing.value) return; // Fix: Prevent re-entry
 
-  // WICHTIG: isInitializing prevents updateGraph from running during this setup
+  // IMPORTANT: isInitializing prevents updateGraph from running during this setup
   isInitializing.value = true; // Fix: Lock updates
 
   // Fix: Reset Zoom to Identity to ensure coordinates align with UI controls
@@ -1998,10 +2068,16 @@ const initializeDefaultGraph = () => {
 
   initialNodes.forEach(n => addNodeToData(n));
 
-  isInitializing.value = false; // Fix: Unlock updates
-
-  nextTick(() => updateGraph());
+  setTimeout(() => {
+    isInitializing.value = false;
+    nextTick(() => {
+      updateGraph();
+      zoomToFit();
+    });
+  }, 100);
 };
+
+const forceUpdate = () => updateGraph();
 
 defineExpose({
   updateNodeData: (id, changes) => updateNode(id, changes),
@@ -2016,7 +2092,8 @@ defineExpose({
   selectNodeForPresentation,
   clearSelection,
   highlightLevel,
-  smartLayout
+  smartLayout,
+  forceUpdate
 });
 </script>
 
@@ -2027,7 +2104,7 @@ defineExpose({
   overflow: hidden;
   position: relative;
   background-color: #f8f9fa;
-  /* Standard Hintergrund */
+  /* Standard Background */
   transition: background-color 0.3s;
 }
 
@@ -2054,6 +2131,8 @@ defineExpose({
 :deep(.node rect) {
   transition: all 0.3s ease;
   cursor: grab;
+  will-change: transform;
+  /* Performance Boost: GPU Layering */
 }
 
 :deep(.node.dragging rect) {
@@ -2166,7 +2245,7 @@ defineExpose({
 
 :deep(.spotlight-path) {
   fill: rgba(0, 0, 0, 0.6);
-  /* Weniger dunkel, nur leichtes Dimmen */
+  /* Less dark, only slight dimming */
   fill-rule: evenodd;
   pointer-events: auto;
   z-index: 10;
@@ -2393,8 +2472,8 @@ defineExpose({
   fill: rgba(25, 25, 25, 0.8) !important;
   /* Glassmorphism background */
   stroke-width: 2px;
-  /* Glow effect handled by specific types below or generic shadow */
-  filter: drop-shadow(0 0 10px rgba(0, 0, 0, 0.5));
+  /* Performance: Removed generic heavy drop-shadow */
+  /* filter: drop-shadow(0 0 10px rgba(0, 0, 0, 0.5)); */
 }
 
 /* Tutorial Glow Animation */

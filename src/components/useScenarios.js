@@ -5,7 +5,7 @@ import { useGraphData } from './useGraphData'
 const SCENARIOS_STORAGE_KEY = 'worth-map-scenarios-v1'
 
 export function useScenarios() {
-  const { getGraphData, loadGraphData, resetGraphData } = useGraphData()
+  const { getGraphData } = useGraphData()
   const scenarios = ref([{ id: 1, name: 'Draft 1', data: null }])
   const currentScenarioId = ref(1)
   const isSwitching = ref(false) // Lock to prevent watcher from overwriting data during switch
@@ -21,11 +21,6 @@ export function useScenarios() {
           // Ensure current ID is valid
           if (!scenarios.value.some((s) => s.id === currentScenarioId.value)) {
             currentScenarioId.value = scenarios.value[0].id
-          }
-          // Load data for current scenario
-          const current = scenarios.value.find((s) => s.id === currentScenarioId.value)
-          if (current?.data) {
-            loadGraphData(current.data)
           }
         }
       } catch (e) {
@@ -45,14 +40,18 @@ export function useScenarios() {
   // Persist scenarios to localStorage
   // We only save to localStorage here. Syncing graph -> scenario object happens explicitly or via auto-save logic elsewhere if needed.
   // But to be safe, we sync on change, BUT skip if we are in the middle of switching.
+  let saveTimeout = null
   watch(
     [scenarios, currentScenarioId],
     () => {
       if (isSwitching.value) return
 
-      // Sync current state before saving to disk
-      syncCurrentScenarioData()
-      localStorage.setItem(SCENARIOS_STORAGE_KEY, JSON.stringify(scenarios.value))
+      if (saveTimeout) clearTimeout(saveTimeout)
+      saveTimeout = setTimeout(() => {
+        // Sync current state before saving to disk
+        syncCurrentScenarioData()
+        localStorage.setItem(SCENARIOS_STORAGE_KEY, JSON.stringify(scenarios.value))
+      }, 1000) // 1 second debounce for disk writes
     },
     { deep: true }
   )
@@ -67,16 +66,6 @@ export function useScenarios() {
 
     // 2. Switch
     currentScenarioId.value = id
-    const nextScenario = scenarios.value.find((s) => s.id === id)
-
-    // 3. Load new state
-    if (nextScenario) {
-      if (nextScenario.data) {
-        loadGraphData(nextScenario.data)
-      } else {
-        resetGraphData()
-      }
-    }
 
     // Unlock watcher and save the switch to storage
     setTimeout(() => {
@@ -90,9 +79,16 @@ export function useScenarios() {
     syncCurrentScenarioData()
 
     const newId = Date.now()
-    scenarios.value.push({ id: newId, name: `Draft ${scenarios.value.length + 1}`, data: null })
+
+    let counter = 1
+    let newName = `Draft ${counter}`
+    while (scenarios.value.some((s) => s.name === newName)) {
+      counter++
+      newName = `Draft ${counter}`
+    }
+
+    scenarios.value.push({ id: newId, name: newName, data: null })
     currentScenarioId.value = newId
-    resetGraphData()
 
     setTimeout(() => {
       isSwitching.value = false
@@ -109,9 +105,6 @@ export function useScenarios() {
         if (scenarios.value.length > 1) {
           const nextId = scenarios.value[nextIndex === index ? index + 1 : nextIndex].id
           switchScenario(nextId)
-        } else {
-          resetGraphData()
-          // Keep the empty scenario or handle empty state
         }
       }
       scenarios.value.splice(index, 1)
@@ -156,7 +149,6 @@ export function useScenarios() {
 
     scenarios.value.push({ id: newId, name: `${original.name} (Copy)`, data: clonedData })
     currentScenarioId.value = newId
-    loadGraphData(clonedData || { nodes: [], links: [] })
 
     setTimeout(() => {
       isSwitching.value = false

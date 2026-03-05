@@ -106,18 +106,15 @@ const props = defineProps({
 });
 
 import { computed, nextTick, ref, watch } from 'vue';
+import { safeLevels } from './useStyling';
 
 const emit = defineEmits(['update-node', 'highlight-level']);
 
-const LAYER_LABELS = {
-  'nshc': 'NSHC',
-  'feature': 'Feature', 'feature_req': 'Feature (Req)',
-  'quality': 'Quality', 'quality_req': 'Quality (Req)',
-  'hoe': 'HOE', 'hoe_req': 'HOE (Req)'
-};
-
 const getLayerLabel = (type) => {
-  return LAYER_LABELS[type] || type;
+  const level = safeLevels.find(l => l.id === type);
+  if (!level) return type;
+  // Append (Req) if it's a requested layer (negative index in safeLevels logic)
+  return level.index < 0 ? `${level.label} (Req)` : level.label;
 };
 
 const evidenceInput = ref(null);

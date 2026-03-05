@@ -47,7 +47,7 @@ export const runSmartLayout = (simulation, nodes, links) => {
     return neighbors
   }
 
-  // Barycenter Heuristik (mehrere Durchläufe für Glättung)
+  // Barycenter Heuristic (multiple passes for smoothing)
   for (let i = 0; i < 8; i++) {
     // Down sweep
     for (let j = 1; j < layerIds.length; j++) {

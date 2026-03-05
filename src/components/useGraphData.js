@@ -12,7 +12,7 @@ const graphData = reactive({
 const history = ref([])
 const future = ref([])
 
-// FIX: toRaw entfernt den Vue-Proxy, damit structuredClone sicher funktioniert
+// FIX: toRaw removes the Vue proxy so structuredClone works safely
 const clone = (data) => structuredClone(toRaw(data))
 
 export function useGraphData() {
@@ -26,7 +26,7 @@ export function useGraphData() {
     if (history.value.length === 0) return
     future.value.push(clone(graphData))
     const prev = history.value.pop()
-    // Arrays leeren und neu befüllen, um Reaktivität zu erhalten
+    // Empty arrays and refill to maintain reactivity
     graphData.nodes.splice(0, graphData.nodes.length, ...prev.nodes)
     graphData.links.splice(0, graphData.links.length, ...prev.links)
   }
@@ -113,9 +113,9 @@ export function useGraphData() {
   }
 
   const resetGraphData = () => {
-    // Kein saveState hier, wenn wir komplett resetten wollen,
-    // oder wir speichern den leeren Zustand als neuen History-Eintrag.
-    // Um den Fehler beim Initialisieren zu vermeiden, prüfen wir, ob Daten da sind.
+    // No saveState here if we want to reset completely,
+    // or we save the empty state as a new history entry.
+    // To avoid initialization errors, we check if data exists.
     if (graphData.nodes.length > 0) saveState()
     graphData.nodes.length = 0
     graphData.links.length = 0
@@ -133,7 +133,7 @@ export function useGraphData() {
   }
 
   const getGraphData = () => {
-    // Rückgabe einer sauberen Kopie (keine Reaktivität, keine D3-Referenzen)
+    // Return a clean copy (no reactivity, no D3 references)
     return structuredClone(toRaw(graphData))
   }
 

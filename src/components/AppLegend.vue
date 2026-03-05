@@ -18,18 +18,6 @@
                     <li>🔗 Linking Active</li>
                 </ul>
             </div>
-            <div v-if="currentMode === 'map'" class="legend-section">
-                <strong>Status:</strong>
-                <ul>
-                    <li>
-                        <svg width="16" height="16" viewBox="0 0 16 16" class="icon-svg">
-                            <path d="M2,8 L6,12 L14,4" fill="none" stroke="#28a745" stroke-width="2.5" />
-                        </svg> Valid
-                    </li>
-                    <li><span class="icon-incomplete">⚠️</span> Incomplete</li>
-                    <li><span class="icon-error">❌</span> Methodological Error</li>
-                </ul>
-            </div>
         </div>
     </Transition>
     <button v-if="!showLegend && currentMode !== 'evaluation'" class="legend-toggle-btn"
@@ -89,22 +77,6 @@ defineEmits(['update:showLegend']);
 .legend-section:last-child {
     border-bottom: none;
     margin-bottom: 0;
-}
-
-.icon-svg {
-    margin-right: 5px;
-}
-
-.legend .icon-valid {
-    color: #28a745;
-}
-
-.legend .icon-incomplete {
-    color: #ffc107;
-}
-
-.legend .icon-error {
-    color: #dc3545;
 }
 
 .legend-header {

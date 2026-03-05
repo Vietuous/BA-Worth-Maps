@@ -1,13 +1,12 @@
 <template>
   <div id="app" class="app-layout" :class="{ 'dark-mode': isDarkMode }">
-    <!-- 1. Top-Toolbar -->
+    <!-- 1. Top Toolbar -->
     <AppTopbar :current-mode="currentMode" :can-evaluate="canEvaluate" :is-menu-open="isMenuOpen"
       v-model:search-query="searchQuery" :can-undo="canUndo" :can-redo="canRedo" @set-mode="setMode"
-      @execute-search="executeSearch" @toggle-menu="isMenuOpen = !isMenuOpen" :last-saved="lastSaved"
-      :save-status="saveStatus" @export-json="handleExportJson(currentScenarioName)" @import-json="handleImportJson"
-      @share="handleShare" @undo="undo" @redo="redo" @toggle-tutorial="toggleTutorial" :show-tutorial="showTutorial"
-      @reset="handleReset" @zoom="triggerZoom" @zoom-to-fit="handleZoomToFit" @toggle-tasks="toggleTasks"
-      @toggle-sus="toggleSus" />
+      @execute-search="executeSearch" @toggle-menu="isMenuOpen = !isMenuOpen"
+      @export-json="handleExportJson(currentScenarioName)" @import-json="handleImportJson" @share="handleShare"
+      @undo="undo" @redo="redo" @toggle-tutorial="toggleTutorial" :show-tutorial="showTutorial" @reset="handleReset"
+      @zoom="triggerZoom" @zoom-to-fit="handleZoomToFit" @toggle-tasks="toggleTasks" @toggle-sus="toggleSus" />
 
     <!-- SUS Success Toast -->
     <Transition name="fade">
@@ -17,7 +16,7 @@
     </Transition>
 
     <div class="main-layout">
-      <!-- 1. & 5. Zentrale Canvas (Responsive) -->
+      <!-- 1. & 5. Central Canvas (Responsive) -->
       <div class="canvas-wrapper">
         <WorthMap ref="worthMapComponent" :mode="currentMode" :analyzing-view="analyzingView"
           :visible-layers="visibleLayers" :is-dark-mode="isDarkMode" :show-tutorial="showTutorial"
@@ -39,7 +38,7 @@
           @update-name="handleScenarioRename" />
       </div>
 
-      <!-- 1. & 2. Sidebar rechts (Interaktiv) -->
+      <!-- 1. & 2. Right Sidebar (Interactive) -->
       <AppSidebar :is-open="isSidebarOpen" :selected-node="selectedNode" :current-mode="currentMode"
         :sorted-selected-path="sortedSelectedPath" :graph-stats="graphStats" @update-node="handleNodeUpdate" />
     </div>
@@ -50,7 +49,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from "vue";
+import { computed, onMounted, ref, shallowRef, watch } from "vue";
 import AppCanvasToolBars from "./components/AppCanvasToolBars.vue";
 import AppLegend from "./components/AppLegend.vue";
 import AppScenarioOverlay from "./components/AppScenarioOverlay.vue";
@@ -58,7 +57,7 @@ import AppScenarioTabs from "./components/AppScenarioTabs.vue";
 import AppSidebar from "./components/AppSidebar.vue";
 import AppSusModal from "./components/AppSusModal.vue";
 import AppTopbar from "./components/AppTopbar.vue";
-import { useAutoSave } from "./components/useAutoSave";
+import { evalScenarios, susQuestions } from "./components/studyData";
 import { useFileIO } from "./components/useFileIO";
 import { useGraphData } from "./components/useGraphData";
 import { useScenarios } from "./components/useScenarios";
@@ -75,7 +74,7 @@ const isLinkingMode = ref(false);
 const isMenuOpen = ref(false);
 const searchQuery = ref("");
 const canEvaluate = ref(false);
-const graphStats = ref(null);
+const graphStats = shallowRef(null);
 const analyzingView = ref('axis'); // 'axis' or 'zones'
 const isDarkMode = ref(false);
 const showTutorial = ref(false); // Optimization: Tutorial hidden by default
@@ -83,64 +82,13 @@ const showTutorial = ref(false); // Optimization: Tutorial hidden by default
 // Composables
 const { scenarios, currentScenarioId, switchScenario, addScenario, deleteScenario, renameScenario, cloneScenario, updateScenarioName } = useScenarios();
 const { handleExportJson, handleImportJson, handleShare } = useFileIO(worthMapComponent);
-const { undo, redo, canUndo, canRedo, getGraphData, graphData, loadGraphData } = useGraphData();
-
-// Auto-Save Feature
-const { lastSaved, status: saveStatus } = useAutoSave(scenarios, currentScenarioId, graphData, (loadedData) => {
-  if (loadedData.scenarios && loadedData.scenarios.length > 0) {
-    scenarios.value = loadedData.scenarios;
-    currentScenarioId.value = loadedData.currentScenarioId || loadedData.scenarios[0].id;
-
-    // Load the graph data for the active scenario
-    const current = scenarios.value.find(s => s.id === currentScenarioId.value);
-    if (current) loadGraphData(current.data);
-  }
-});
+const { undo, redo, canUndo, canRedo, getGraphData, graphData } = useGraphData();
 
 // Phase 7 State
 const activeScenario = ref(null);
 const showTasksOverlay = ref(false);
 const showSusModal = ref(false);
 const susSuccessMessage = ref(null);
-
-const evalScenarios = [
-  {
-    id: 1,
-    title: "Task 1: Creation",
-    description:
-      "You are introducing a new learning app. Start on a new draft and rename the draft to your liking. Next, click on 'Show Tutorial' on the right canvas toolbar. Follow the tutorial until you have created one complete value chain successfully. Use the following for each layer: NSHC: More Frequent Usage, Feature: Gamification Elements, Quality: Increased Motivation, HOE: More Consistent Study Behaviour. Create 1 more HOE node and drag it to the second row of the layer and rename it to 'Better Exam Performance' but do not link it to your current value chain.",
-  },
-  {
-    id: 2,
-    title: "Task 2: Evaluation",
-    description:
-      "Switch to Evaluation Mode located in the top bar. This mode is purely for reviewing your mapping, so select one HOE and examine the visual highlighting and sidebar. Then switch back to Mapping Mode.",
-  },
-  {
-    id: 3,
-    title: "Task 3: Save and Load",
-    description:
-      "Save your project by clicking on the drop down menu on the right side of the top bar. Create a new draft and load in the just created .JSON file to confirm it was saved successfully.",
-  },
-  {
-    id: 4,
-    title: "Bonus Functionalities",
-    description: "If you have not found all of the functionalities in this web page, check here:\n\n• Dark Mode Toggle to lessen eye strain.\n• Optimize Layout for organizing your Worth Map with no overlapping.\n• Recolor any connection by right clicking and selecting a color.\n• A legend to see short cuts.\n• A minimap to see your Worth Map node outline.\n• A prominent filter bar to hide selected layers.\n• Stickied zones on the left to collapse and expand by clicking [+] and [-].\n• Combined Evidence Notes will appear on a whole value chain in Evaluation Mode.\n• Undo and Redo button in drop down menu.\n• Reset All button to reset the Worth Map.\n• Fit to Screen button for ease of use."
-  }
-];
-
-const susQuestions = [
-  "I think that I would like to use this system frequently.",
-  "I found the system unnecessarily complex.",
-  "I thought the system was easy to use.",
-  "I think that I would need the support of a technical person to be able to use this system.",
-  "I found the various functions in this system were well integrated.",
-  "I thought there was too much inconsistency in this system.",
-  "I would imagine that most people would learn to use this system very quickly.",
-  "I found the system very cumbersome to use.",
-  "I felt very confident using the system.",
-  "I needed to learn a lot of things before I could get going with this system."
-];
 
 const currentScenarioName = computed(() => {
   const s = scenarios.value.find(s => s.id === currentScenarioId.value);
@@ -155,21 +103,54 @@ const handleNodeSelection = (payload) => {
     // Support both simple node and {node, path} payload
     selectedNode.value = payload.node || payload;
     selectedPath.value = payload.path || [];
-    // Sidebar automatisch öffnen bei Selektion (Details-on-Demand)
+    // Automatically open sidebar on selection (Details-on-Demand)
     if (!isSidebarOpen.value) isSidebarOpen.value = true;
   }
 };
 
-const handleGraphStats = (stats) => {
-  if (JSON.stringify(graphStats.value) !== JSON.stringify(stats)) {
-    canEvaluate.value = stats.hasFullChain;
-    graphStats.value = stats;
-
-    // Auto-initialize if graph is empty (e.g. new draft)
-    if (stats.nodeCounts && Object.values(stats.nodeCounts).reduce((a, b) => a + b, 0) === 0) {
-      worthMapComponent.value?.initializeDefaultGraph();
-    }
+onMounted(() => {
+  // Initialize Graph with current scenario data (loaded by useScenarios)
+  const current = scenarios.value.find(s => s.id === currentScenarioId.value);
+  if (current && worthMapComponent.value) {
+    // Use nextTick to ensure WorthMap is fully mounted and ready
+    import('vue').then(({ nextTick }) => {
+      nextTick(() => worthMapComponent.value.loadGraphData(current.data));
+    });
   }
+});
+
+// 3. Sync GraphData to Current Scenario (Debounced)
+let syncTimeout = null;
+watch(graphData, (val) => {
+  if (syncTimeout) clearTimeout(syncTimeout);
+
+  // Debounce to avoid freezing UI during heavy interactions
+  syncTimeout = setTimeout(() => {
+    const current = scenarios.value.find(s => s.id === currentScenarioId.value);
+    if (current) {
+      // Update the scenario data. This triggers the watcher in useScenarios to save to localStorage.
+      current.data = JSON.parse(JSON.stringify(val));
+    }
+  }, 500);
+}, { deep: true });
+
+/* 
+   REMOVED: Duplicate localStorage logic. 
+   useScenarios.js handles the actual saving to 'worth-map-scenarios-v1'.
+*/
+
+// 4. Watch for Scenario Switch to load data
+watch(currentScenarioId, (newId) => {
+  const current = scenarios.value.find(s => s.id === currentScenarioId.value);
+  if (current && worthMapComponent.value) {
+    worthMapComponent.value.loadGraphData(current.data);
+  }
+});
+
+const handleGraphStats = (stats) => {
+  // Simple assignment, relying on WorthMap's debounce to prevent recursion
+  canEvaluate.value = stats.hasFullChain;
+  graphStats.value = stats;
 };
 
 const handleNodeUpdate = ({ id, changes }) => {
@@ -332,7 +313,7 @@ html {
   flex: 1;
   position: relative;
   overflow: hidden;
-  /* Hintergrund wird in WorthMap.vue gesteuert */
+  /* Background is controlled in WorthMap.vue */
 }
 
 /* Force pre-wrap for task descriptions to show bullet points */
@@ -341,7 +322,7 @@ html {
   white-space: pre-wrap;
 }
 
-/* Responsive Anpassungen */
+/* Responsive Adjustments */
 @media (max-width: 768px) {
   .toolbar {
     height: auto;

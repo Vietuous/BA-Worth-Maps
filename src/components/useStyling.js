@@ -35,7 +35,7 @@ export const generateColorPalette = (baseColor) => {
   ]
 }
 
-export const getLinkPalette = () => [
+export const linkPalette = [
   '#999999',
   '#F44336',
   '#9C27B0',
@@ -48,7 +48,9 @@ export const getLinkPalette = () => [
   '#607D8B'
 ]
 
-// Cache für Textbreiten zur Performance-Optimierung
+export const getLinkPalette = () => linkPalette
+
+// Cache for text widths for performance optimization
 const widthCache = new Map()
 
 export const getTextWidth = (text, font = '14px sans-serif') => {
@@ -62,7 +64,7 @@ export const getTextWidth = (text, font = '14px sans-serif') => {
   context.font = font
   const metrics = context.measureText(text)
 
-  // Cache begrenzen, um Speicherlecks zu vermeiden
+  // Limit cache to avoid memory leaks
   if (widthCache.size > 1000) widthCache.clear()
 
   widthCache.set(key, metrics.width)

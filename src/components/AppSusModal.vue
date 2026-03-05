@@ -110,7 +110,7 @@ const submitForm = async () => {
     try {
         await fetch(GOOGLE_SCRIPT_URL, {
             method: "POST",
-            mode: "no-cors", // Wichtig für Google Apps Script
+            mode: "no-cors", // Important for Google Apps Script
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(result)
         });
@@ -118,7 +118,7 @@ const submitForm = async () => {
         console.error("Submission failed", e);
     } finally {
         isSubmitting.value = false;
-        emit('submit'); // Signalisiert Erfolg an App.vue für den Toast
+        emit('submit'); // Signals success to App.vue for the toast
     }
 };
 </script>
