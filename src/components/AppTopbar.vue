@@ -5,6 +5,10 @@
         </div>
 
         <div class="center-controls">
+            <div class="undo-redo-group">
+                <button @click="$emit('undo')" :disabled="!canUndo" title="Undo">↩️</button>
+                <button @click="$emit('redo')" :disabled="!canRedo" title="Redo">↪️</button>
+            </div>
             <div class="mode-toggle">
                 <button :class="{ active: currentMode === 'map' }" @click="$emit('set-mode', 'map')"
                     title="Formal Mapping Mode">
@@ -32,8 +36,6 @@
 
                         <hr />
                         <div class="menu-section-label">Edit</div>
-                        <button @click="$emit('undo')" :disabled="!canUndo">↩️ Undo</button>
-                        <button @click="$emit('redo')" :disabled="!canRedo">↪️ Redo</button>
                         <button @click="$emit('reset')" class="danger-text">🗑️ Reset All</button>
                         <hr />
                         <div class="menu-section-label">View</div>
@@ -141,6 +143,11 @@ const handleFileChange = (event) => {
 .status-saving {
     color: #42b983;
     font-weight: bold;
+}
+
+.undo-redo-group {
+    display: flex;
+    margin-right: 15px;
 }
 
 .center-controls {

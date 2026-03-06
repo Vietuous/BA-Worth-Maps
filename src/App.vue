@@ -45,7 +45,8 @@
   </div>
 
   <!-- Phase 7: SUS Modal (Optional) -->
-  <AppSusModal :show="showSusModal" :questions="susQuestions" @close="showSusModal = false" @submit="handleSusSubmit" />
+  <AppSusModal :show="showSusModal" :questions="extendedSusQuestions" @close="showSusModal = false"
+    @submit="handleSusSubmit" />
 </template>
 
 <script setup>
@@ -266,6 +267,23 @@ const sortedSelectedPath = computed(() => {
     return order.indexOf(a.type) - order.indexOf(b.type);
   });
 });
+
+const extendedSusQuestions = computed(() => {
+  const newQuestions = [
+    {
+      id: 'familiar_wm',
+      text: "How familiar are you with Worth Maps?",
+      options: ["Novice", "Passing Knowledge", "Knowledgeable", "Expert"]
+    },
+    {
+      id: 'familiar_tools',
+      text: "How familiar with similar tools (for instance online diagram creation, such as bpmn.io or VisualParadigm)?",
+      options: ["Novice", "Passing Knowledge", "Knowledgeable", "Expert"]
+    }
+  ];
+  // Insert new questions AFTER the standard 10 questions (susQuestions) and before open-ended (handled by modal)
+  return [...susQuestions, ...newQuestions];
+});
 </script>
 
 <style>
@@ -291,10 +309,10 @@ html {
   display: flex;
   flex-direction: column;
   position: fixed;
-  top: -3.5vh;
-  left: -1.7vw;
-  height: 107vh;
-  width: 103.2vw;
+  top: -2.5vh;
+  left: -1.2vw;
+  height: 105vh;
+  width: 102.4vw;
   max-width: none;
   margin: 0;
   overflow: hidden;

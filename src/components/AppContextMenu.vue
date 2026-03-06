@@ -8,16 +8,17 @@
                 </div>
 
                 <template v-if="type === 'node'">
+
                     <button @click="emitAction('rename')">✏️ Rename</button>
                     <button @click="emitAction('start-connection')">🔗 Start Connection</button>
-                    <button @click="emitAction('duplicate')">📑 Duplicate</button>
-                    <hr />
-                    <button @click="emitAction('highlight-in')">⬅️ Highlight Incoming</button>
-                    <button @click="emitAction('highlight-out')">➡️ Highlight Outgoing</button>
-                    <hr />
                     <button @click="emitAction('delete')" class="danger-text">
                         {{ deleteConfirm ? '⚠️ Confirm Delete?' : '🗑️ Delete' }}
                     </button>
+                    <hr />
+                    <button @click="emitAction('duplicate')">📑 Duplicate</button>
+                    <button @click="emitAction('highlight-in')">⬅️ Highlight Incoming</button>
+                    <button @click="emitAction('highlight-out')">➡️ Highlight Outgoing</button>
+                    <hr />
                 </template>
 
                 <template v-if="type === 'link'">
@@ -95,7 +96,7 @@ const emitAction = (action, payload) => {
 .context-menu {
     position: fixed;
     background: white;
-    border: 1px solid #ccc;
+    border: 1px solid #000;
     /* Outlined as requested */
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     border-radius: 6px;

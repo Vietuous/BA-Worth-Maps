@@ -61,7 +61,6 @@ import * as d3 from "d3";
 import { isRef, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import AppContextMenu from "./AppContextMenu.vue";
 import AppMinimap from "./AppMinimap.vue";
-import { runSmartLayout } from "./layoutAlgorithms";
 import { useGraphData } from "./useGraphData";
 import { getConnectedPath, getDirectionalNodes } from "./useGraphTraversal";
 import { resolveOverlaps } from "./useLayout";
@@ -493,6 +492,20 @@ const updateGraph = () => {
   let nodes = rawData.nodes;
   let links = rawData.links;
 
+  // Pre-calculate HOE connectivity for layout logic
+  const hoeReceivers = new Set();
+  links.forEach(l => {
+    const sId = l.source.id || l.source;
+    const tId = l.target.id || l.target;
+    const s = nodes.find(n => n.id === sId);
+    const t = nodes.find(n => n.id === tId);
+    if (s && t) {
+      const sIsHoe = s.type === 'hoe' || s.type === 'hoe_req';
+      const tIsHoe = t.type === 'hoe' || t.type === 'hoe_req';
+      if (sIsHoe && tIsHoe) hoeReceivers.add(tId);
+    }
+  });
+
   // Evaluation Mode: Filter out placeholder nodes to clean up the view
   if (props.mode === 'evaluation') {
     const nodeIds = new Set(nodes.map(n => n.id));
@@ -516,40 +529,36 @@ const updateGraph = () => {
         n.fy = old.fy;
       }
 
-      // Layout Logic: Grid Snap & HOE Rows
-      if (n.fx === undefined || n.fx === null || n.fy === undefined || n.fy === null) {
-        // Fix: If we have valid saved positions (from load/draft switch), trust them!
-        // Do not re-snap to default rows, which causes jumping/stacking issues.
-        if (n.x !== undefined && n.y !== undefined) {
+      // Layout Logic: ALWAYS snap Y position to the correct layer
+      const level = safeLevels.find(l => l.id === n.type);
+      if (level) {
+        const layerCenter = centerY + (1.5 - level.index) * 150;
+
+        // Preserve horizontal position if it exists (from drag or load)
+        if (n.fx === undefined || n.fx === null) {
           n.fx = n.x;
-          n.fy = n.y;
+        }
+
+        // ALWAYS recalculate and enforce vertical position
+        if (n.type === 'hoe' || n.type === 'hoe_req') {
+          const row1 = layerCenter;
+          const row2 = n.type === 'hoe' ? layerCenter - 80 : layerCenter + 80;
+
+          // Enforce row logic: Children (with incoming HOE links) go to the second row.
+          n.fy = hoeReceivers.has(n.id) ? row2 : row1;
         } else {
-          const level = safeLevels.find(l => l.id === n.type);
-          if (level) {
-            const layerCenter = centerY + (1.5 - level.index) * 150;
-            n.fx = n.x !== undefined ? n.x : 0; // Keep X if set, otherwise 0
+          n.fy = layerCenter;
+        }
 
-            // Y: Snap to Layer Center (Single Level) or HOE Rows
-            if (n.type === 'hoe' || n.type === 'hoe_req') {
-              // 2 Rows for HOE
-              const row1 = layerCenter;
-              const row2 = n.type === 'hoe' ? layerCenter - 80 : layerCenter + 80;
-              // Default to row 1 if new, or snap to closest if existing
-              n.fy = (n.y && Math.abs(n.y - row2) < Math.abs(n.y - row1) - 10) ? row2 : row1;
-            } else {
-              n.fy = layerCenter;
-            }
-
-            // Cache dimensions for performance in tick/intersection
-            n._width = safeGetNodeWidth(n);
-            n._height = safeGetNodeHeight(n);
-
-            // Sync coordinates to avoid animation
-            n.x = n.fx;
-            n.y = n.fy;
-          }
+        // For new nodes, or nodes without a previous simulation state, place them at their fixed position immediately
+        if (!old) {
+          n.x = n.fx;
+          n.y = n.fy;
         }
       }
+      // Cache dimensions for performance in tick/intersection
+      n._width = safeGetNodeWidth(n);
+      n._height = safeGetNodeHeight(n);
     });
 
   }
@@ -728,9 +737,6 @@ const updateGraph = () => {
       drawGroupLabel("Requested Worth", "requested", centerY + 525);
     }
 
-    // Update Controls Structure (Add/Remove Buttons)
-    drawControls();
-
   } else if (props.mode === 'evaluation' && props.analyzingView === 'axis') {
     // 5. Butterfly Mode Visuals (Symmetry Axis)
     gridLayer.selectAll("*").remove(); // Clear zones if switching to axis
@@ -751,6 +757,9 @@ const updateGraph = () => {
       .attr("fill", "#42b983").attr("font-size", "10px").attr("font-weight", "bold").style("letter-spacing", "2px")
       .text("VALUE EXCHANGE AXIS");
   }
+
+  // Update Controls Structure (Add/Remove Buttons) - Always call to ensure cleanup in Eval mode
+  drawControls();
 
   // 1. Feed Simulation
   if (simulation) {
@@ -1351,7 +1360,7 @@ onMounted(() => {
       for (let i = 0; i < rowNodes.length - 1; i++) {
         const a = rowNodes[i];
         const b = rowNodes[i + 1];
-        const minDist = (safeGetNodeWidth(a) + safeGetNodeWidth(b)) / 2 + 30; // 30px gap
+        const minDist = (safeGetNodeWidth(a) + safeGetNodeWidth(b)) / 2 + 60; // 60px gap for consistency
         const dist = (b.fx ?? b.x) - (a.fx ?? a.x);
         if (dist < minDist) {
           const push = (minDist - dist) * alpha * 0.8;
@@ -1651,7 +1660,7 @@ onMounted(() => {
   // Initialize Zoom Behavior
   zoomBehavior = d3.zoom()
     .scaleExtent([0.1, 2])
-    .translateExtent([[-4000, -350], [5000, 1700]]) // Limit panning vertically to keep content in view
+    .translateExtent([[-8000, -2000], [8000, 4000]]) // Expanded panning range
     .on("zoom", (event) => {
       g.attr("transform", event.transform);
       currentZoomTransform.value = event.transform; // Update reactive state for spotlight
@@ -1668,7 +1677,34 @@ onMounted(() => {
       updateMinimap();
       updateSpotlight(); // Update spotlight on zoom
     });
-  svg.call(zoomBehavior);
+
+  // Custom Wheel Handling for Pan vs Zoom
+  svg.call(zoomBehavior)
+    .on("wheel.zoom", null) // Disable default wheel zoom
+    .on("wheel", (event) => {
+      event.preventDefault();
+      const transform = d3.zoomTransform(svg.node());
+
+      if (event.ctrlKey) {
+        // Ctrl + Wheel = Zoom
+        // Smooth pinch-to-zoom using deltaY
+        zoomBehavior.scaleBy(svg, Math.pow(2, -event.deltaY * 0.005));
+      } else {
+        // Wheel = Pan
+        // Touchpad sends deltaX/deltaY directly. Mouse wheel sends deltaY.
+        let dx = -event.deltaX;
+        let dy = -event.deltaY;
+
+        // Shift + Wheel = Horizontal Pan (for mice without horizontal scroll)
+        if (event.shiftKey && Math.abs(dx) < Math.abs(dy)) {
+          dx = -event.deltaY;
+          dy = 0;
+        }
+
+        // Apply translation (account for current scale to keep pan speed consistent)
+        zoomBehavior.translateBy(svg, dx / transform.k, dy / transform.k);
+      }
+    });
 
   // Resize Observer
   resizeObserver = new ResizeObserver(() => {
@@ -1874,8 +1910,21 @@ const smartLayout = () => {
   if (!simulation) return;
   const h = mapContainer.value?.clientHeight || 800;
   const centerY = h / 2;
+  const { links, nodes } = getRawData();
 
-  // 1. Ensure Y positions are snapped correctly before running X layout
+  // 1. Reset velocities and positions for deterministic result
+  simulation.nodes().forEach((n, i) => {
+    n.fx = null; // Unlock X to allow optimization
+    n.vx = 0;
+    n.vy = 0;
+    // Deterministic initial spread to avoid stacking at exact 0
+    n.x = (i % 2 === 0 ? 1 : -1) * (i * 50); // Wider initial spread
+    n.y = 0; // Reset Y to neutral
+    n.fy = null;
+  });
+
+  // 2. Identify HOE nodes and set constraints
+  const hoeNodes = [];
   simulation.nodes().forEach(n => {
     const level = safeLevels.find(l => l.id === n.type);
     if (level) {
@@ -1883,24 +1932,92 @@ const smartLayout = () => {
       if (n.type === 'hoe' || n.type === 'hoe_req') {
         const row1 = layerCenter;
         const row2 = n.type === 'hoe' ? layerCenter - 80 : layerCenter + 80;
-        // Snap to closest row to maintain current preference
-        n.fy = (n.y && Math.abs(n.y - row2) < Math.abs(n.y - row1) - 10) ? row2 : row1;
+
+        // Determine preference based on connectivity (Root vs Child)
+        const isChild = links.some(l => {
+          const s = l.source.id || l.source;
+          const t = l.target.id || l.target;
+          const srcNode = nodes.find(node => node.id === s);
+          return t === n.id && srcNode && (srcNode.type === 'hoe' || srcNode.type === 'hoe_req');
+        });
+
+        // STRICTLY enforce row based on logic, ignoring current position
+        n.fy = isChild ? row2 : row1;
+        n.y = n.fy; // Set current y to target immediately
       } else {
+        // Non-HOE: Pin to layer center
         n.fy = layerCenter;
+        n.y = layerCenter;
       }
-      n.y = n.fy; // Sync y to fy
     }
   });
 
-  // 2. Run the algorithm to calculate fx positions (Barycenter)
-  const { links } = getRawData();
-  runSmartLayout(simulation, simulation.nodes(), links);
+  // Custom Force to prevent horizontal overlap on the same row (Rectangular Collision)
+  const rectCollide = (alpha) => {
+    const nodes = simulation.nodes();
+    const paddingX = 80; // Significantly increased padding to prevent overlap
+    const paddingY = 60; // Vertical padding to detect "same row"
 
-  // 3. Persist the calculated positions
+    for (let i = 0; i < nodes.length; i++) {
+      const a = nodes[i];
+      const wA = a._width || safeGetNodeWidth(a);
+
+      for (let j = i + 1; j < nodes.length; j++) {
+        const b = nodes[j];
+
+        // Check Y proximity (Are they in the same visual row?)
+        // We check if vertical distance is small enough to consider them colliding horizontally
+        if (Math.abs(a.y - b.y) < paddingY) {
+          const wB = b._width || safeGetNodeWidth(b);
+          const minDist = (wA + wB) / 2 + paddingX;
+          const dx = a.x - b.x;
+          const absDx = Math.abs(dx);
+
+          if (absDx < minDist) {
+            // Overlap detected! Push apart strongly.
+            const overlap = minDist - absDx;
+            // Deterministic resolution: if dx is 0, use index to decide direction
+            let sign = dx > 0 ? 1 : -1;
+            if (dx === 0) sign = (i < j) ? -1 : 1;
+
+            const push = overlap * alpha * 5; // Very strong push to resolve overlaps immediately
+
+            a.vx += sign * push;
+            b.vx -= sign * push;
+          }
+        }
+      }
+    }
+  };
+
+  // 3. Run Layout Simulation
+  const layoutSim = d3.forceSimulation(simulation.nodes())
+    .force("link", d3.forceLink(links).id(d => d.id).strength(2).distance(40)) // Strong links to keep structure
+    .force("charge", d3.forceManyBody().strength(-4000).distanceMax(2000)) // Stronger repulsion
+    .force("x", d3.forceX(0).strength(0.05)) // Weak centering to allow rectangular shape
+    // Note: forceY is not needed as fy is set for all nodes, effectively pinning Y
+    .force("rectCollide", rectCollide) // Custom rectangular collision
+    .alpha(1)
+    .stop();
+
+  // Run simulation ticks
+  for (let i = 0; i < 2000; ++i) layoutSim.tick(); // High tick count for stability
+
+  // 4. Final Snap and Lock
+  simulation.nodes().forEach(n => {
+    n.fx = n.x; // Lock X });
+  });
+
+  // 5. Update
   const updates = simulation.nodes().map(n => {
+
     return { id: n.id, changes: { x: n.x, y: n.y, fx: n.fx, fy: n.fy } };
   });
   updateNodesBulk(updates);
+
+  nextTick(() => {
+    zoomToFit();
+  });
 };
 
 const loadGraphDataHandler = (data) => {
@@ -1942,7 +2059,7 @@ const zoomToFit = () => {
 
   const width = mapContainer.value.clientWidth;
   const height = mapContainer.value.clientHeight;
-  const padding = 100; // Increased padding to avoid UI overlap
+  const padding = 100;
 
   const x0 = d3.min(nodes, d => d.x);
   const x1 = d3.max(nodes, d => d.x);

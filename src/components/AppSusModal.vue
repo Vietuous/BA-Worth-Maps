@@ -17,15 +17,30 @@
             </div>
 
             <div class="sus-questions">
-                <div v-for="(q, i) in questions" :key="i" class="sus-item">
+                <!-- Standard SUS Questions 1-10 -->
+                <div v-for="(q, i) in susStandardQuestions" :key="i" class="sus-item">
                     <div class="question-row">
-                        <span class="q-text">{{ i + 1 }}. {{ q }}</span>
+                        <span class="q-text">{{ i + 1 }}. {{ q.text || q }}</span>
                         <div class="rating">
                             <label v-for="n in 5" :key="n" class="radio-label">
                                 <input type="radio" :name="'q' + i" :value="n" v-model="answers[i]" />
                                 <span class="radio-num">{{ n }}</span>
                             </label>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Optional Questions Section -->
+            <div class="optional-questions" v-if="susCustomQuestions.length > 0">
+                <h3>Optional Questions</h3>
+                <div v-for="q in susCustomQuestions" :key="q.id" class="sus-item custom-question">
+                    <span class="q-text">{{ q.text }}</span>
+                    <div class="custom-rating">
+                        <label v-for="option in q.options" :key="option" class="custom-radio-label">
+                            <input type="radio" :name="q.id" :value="option" v-model="customAnswers[q.id]" />
+                            <span>{{ option }}</span>
+                        </label>
                     </div>
                 </div>
             </div>
@@ -54,7 +69,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
     show: Boolean,
@@ -63,8 +78,12 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'submit']);
 
-const answers = ref(new Array(10).fill(null));
+const susStandardQuestions = computed(() => props.questions.filter(q => typeof q === 'string' || !q.options));
+const susCustomQuestions = computed(() => props.questions.filter(q => q.options));
+
+const answers = ref([]);
 const openAnswers = ref({ likes: '', improvements: '' });
+const customAnswers = ref({});
 const isSubmitting = ref(false);
 
 const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwNmzVoZls1Lh2q9RnxUHnEhEC6PWGLHOOIeL1E5axdWixkqdYIQQOY1F5oRla3lGgx/exec";
@@ -72,8 +91,12 @@ const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwNmzVoZls1Lh
 watch(() => props.show, (val) => {
     if (val) {
         // Reset on open
-        answers.value = new Array(10).fill(null);
+        answers.value = new Array(susStandardQuestions.value.length).fill(null);
         openAnswers.value = { likes: '', improvements: '' };
+        customAnswers.value = susCustomQuestions.value.reduce((acc, q) => {
+            acc[q.id] = null;
+            return acc;
+        }, {});
     }
 });
 
@@ -104,7 +127,8 @@ const submitForm = async () => {
         screenSize: `${window.screen.width}x${window.screen.height}`,
         sus_scores: answers.value,
         susScore: susScore,
-        feedback: openAnswers.value
+        feedback: openAnswers.value,
+        custom_answers: customAnswers.value
     };
 
     try {
@@ -210,6 +234,20 @@ h2 {
     padding-bottom: 12px;
 }
 
+.sus-item.custom-question {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.custom-rating {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-left: 20px;
+}
+
 .question-row {
     display: flex;
     justify-content: space-between;
@@ -237,6 +275,19 @@ h2 {
     align-items: center;
     cursor: pointer;
     font-size: 0.8rem;
+}
+
+.custom-radio-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.optional-questions {
+    margin-top: 30px;
+    border-top: 2px solid #eee;
+    padding-top: 20px;
 }
 
 .open-questions {

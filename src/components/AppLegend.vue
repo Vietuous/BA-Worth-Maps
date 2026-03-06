@@ -8,8 +8,11 @@
             <div class="legend-section">
                 <strong>Shortcuts:</strong>
                 <ul>
+                    <li><kbd>Scroll</kbd> Pan View</li>
+                    <li><kbd>Shift</kbd> + <kbd>Scroll</kbd> Pan Horizontally</li>
+                    <li><kbd>Ctrl</kbd> + <kbd>Scroll</kbd> Zoom In/Out</li>
                     <li><kbd>Shift</kbd> + Drag: Connect</li>
-                    <li><kbd>Shift</kbd> + Right-click Link: Color</li>
+                    <li>Double-click Node: Rename</li>
                 </ul>
             </div>
             <div class="legend-section" v-if="isLinkingMode && currentMode !== 'evaluation'">
