@@ -10,12 +10,12 @@
                 <template v-if="type === 'node'">
 
                     <button @click="emitAction('rename')">✏️ Rename</button>
-                    <button @click="emitAction('start-connection')">🔗 Start Connection</button>
+                    <button @click="emitAction('duplicate')">📑 Duplicate</button>
                     <button @click="emitAction('delete')" class="danger-text">
                         {{ deleteConfirm ? '⚠️ Confirm Delete?' : '🗑️ Delete' }}
                     </button>
                     <hr />
-                    <button @click="emitAction('duplicate')">📑 Duplicate</button>
+                    <button @click="emitAction('start-connection')">🔗 Start Connection</button>
                     <button @click="emitAction('highlight-in')">⬅️ Highlight Incoming</button>
                     <button @click="emitAction('highlight-out')">➡️ Highlight Outgoing</button>
                     <hr />

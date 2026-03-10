@@ -26,11 +26,6 @@
           <span>This connection is currently invalid!</span>
         </div>
 
-        <div class="warning-box error" v-if="currentMode === 'map' && selectedNode.validationStatus === 'incomplete'">
-          <span class="icon-large">🔺</span>
-          <span>Evidence required to validate the connection!</span>
-        </div>
-
         <div class="sidebar-card">
           <h4>Stakeholder Impact</h4>
           <textarea rows="2" placeholder="What concrete impact does this have on the stakeholder?"

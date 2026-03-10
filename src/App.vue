@@ -6,7 +6,7 @@
       @execute-search="executeSearch" @toggle-menu="isMenuOpen = !isMenuOpen"
       @export-json="handleExportJson(currentScenarioName)" @import-json="handleImportJson" @share="handleShare"
       @undo="undo" @redo="redo" @toggle-tutorial="toggleTutorial" :show-tutorial="showTutorial" @reset="handleReset"
-      @zoom="triggerZoom" @zoom-to-fit="handleZoomToFit" @toggle-tasks="toggleTasks" @toggle-sus="toggleSus" />
+      @zoom="triggerZoom" @zoom-to-fit="handleZoomToFit" @toggle-sus="toggleSus" />
 
     <!-- SUS Success Toast -->
     <Transition name="fade">
@@ -27,20 +27,22 @@
           :graph-stats="graphStats" @toggle-layer="toggleLayer" @toggle-tutorial="toggleTutorial"
           @smart-layout="handleSmartLayout" @toggle-dark-mode="toggleDarkMode" />
 
-        <AppScenarioOverlay v-if="showTasksOverlay" :active-scenario="activeScenario" @next="nextScenario"
-          @end="endEvaluation" @close="showTasksOverlay = false" />
-
         <!-- Legend is here, ensure z-index is high enough -->
-        <AppLegend v-model:show-legend="showLegend" :current-mode="currentMode" :is-linking-mode="isLinkingMode" />
+        <AppLegend :show-legend="showLegend" @update:show-legend="showLegend = $event" :current-mode="currentMode"
+          :is-linking-mode="isLinkingMode" />
 
         <AppScenarioTabs :scenarios="scenarios" :current-scenario-id="currentScenarioId" @switch="switchScenario"
           @add="addScenario" @delete="deleteScenario" @rename="renameScenario" @clone="cloneScenario"
           @update-name="handleScenarioRename" />
       </div>
 
+      <!-- Resize Handle -->
+      <div class="resize-handle" @mousedown="startResize"></div>
+
       <!-- 1. & 2. Right Sidebar (Interactive) -->
       <AppSidebar :is-open="isSidebarOpen" :selected-node="selectedNode" :current-mode="currentMode"
-        :sorted-selected-path="sortedSelectedPath" :graph-stats="graphStats" @update-node="handleNodeUpdate" />
+        :sorted-selected-path="sortedSelectedPath" :graph-stats="graphStats" @update-node="handleNodeUpdate"
+        :style="{ width: sidebarWidth + 'px' }" />
     </div>
   </div>
 
@@ -53,12 +55,11 @@
 import { computed, onMounted, ref, shallowRef, watch } from "vue";
 import AppCanvasToolBars from "./components/AppCanvasToolBars.vue";
 import AppLegend from "./components/AppLegend.vue";
-import AppScenarioOverlay from "./components/AppScenarioOverlay.vue";
 import AppScenarioTabs from "./components/AppScenarioTabs.vue";
 import AppSidebar from "./components/AppSidebar.vue";
 import AppSusModal from "./components/AppSusModal.vue";
 import AppTopbar from "./components/AppTopbar.vue";
-import { evalScenarios, susQuestions } from "./components/studyData";
+import { susQuestions } from "./components/studyData";
 import { useFileIO } from "./components/useFileIO";
 import { useGraphData } from "./components/useGraphData";
 import { useScenarios } from "./components/useScenarios";
@@ -69,7 +70,7 @@ const isSidebarOpen = ref(true);
 const selectedNode = ref(null);
 const selectedPath = ref([]);
 const worthMapComponent = ref(null);
-const showLegend = ref(false);
+const showLegend = ref(true);
 const visibleLayers = ref(['nshc', 'feature', 'quality', 'hoe', 'feature_req', 'quality_req', 'hoe_req']);
 const isLinkingMode = ref(false);
 const isMenuOpen = ref(false);
@@ -84,10 +85,6 @@ const showTutorial = ref(false); // Optimization: Tutorial hidden by default
 const { scenarios, currentScenarioId, switchScenario, addScenario, deleteScenario, renameScenario, cloneScenario, updateScenarioName } = useScenarios();
 const { handleExportJson, handleImportJson, handleShare } = useFileIO(worthMapComponent);
 const { undo, redo, canUndo, canRedo, getGraphData, graphData } = useGraphData();
-
-// Phase 7 State
-const activeScenario = ref(null);
-const showTasksOverlay = ref(false);
 const showSusModal = ref(false);
 const susSuccessMessage = ref(null);
 
@@ -225,15 +222,6 @@ const executeSearch = () => {
   }
 };
 
-// Phase 7 Logic
-const toggleTasks = () => {
-  showTasksOverlay.value = !showTasksOverlay.value;
-  if (showTasksOverlay.value && !activeScenario.value) {
-    // Start first task if none active
-    activeScenario.value = evalScenarios[0];
-  }
-};
-
 const handleSusSubmit = () => {
   susSuccessMessage.value = "Successfully submitted, thank you for participating and for your time!";
   setTimeout(() => {
@@ -245,20 +233,6 @@ const handleSusSubmit = () => {
 const toggleSus = () => {
   showSusModal.value = true;
   isMenuOpen.value = false;
-};
-
-const nextScenario = () => {
-  const currentId = activeScenario.value.id;
-  if (currentId < evalScenarios.length) {
-    activeScenario.value = evalScenarios[currentId];
-  } else {
-    endEvaluation();
-  }
-};
-
-const endEvaluation = () => {
-  activeScenario.value = null;
-  showTasksOverlay.value = false;
 };
 
 const sortedSelectedPath = computed(() => {
@@ -284,6 +258,31 @@ const extendedSusQuestions = computed(() => {
   // Insert new questions AFTER the standard 10 questions (susQuestions) and before open-ended (handled by modal)
   return [...susQuestions, ...newQuestions];
 });
+
+// Sidebar Resizing Logic
+const sidebarWidth = ref(400); // Default width
+const isResizing = ref(false);
+
+const startResize = () => {
+  isResizing.value = true;
+  document.addEventListener('mousemove', handleResize);
+  document.addEventListener('mouseup', stopResize);
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+};
+
+const handleResize = (e) => {
+  const newWidth = window.innerWidth - e.clientX;
+  if (newWidth > 250 && newWidth < 600) sidebarWidth.value = newWidth;
+};
+
+const stopResize = () => {
+  isResizing.value = false;
+  document.removeEventListener('mousemove', handleResize);
+  document.removeEventListener('mouseup', stopResize);
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+};
 </script>
 
 <style>
@@ -309,10 +308,10 @@ html {
   display: flex;
   flex-direction: column;
   position: fixed;
-  top: -2.5vh;
-  left: -1.2vw;
-  height: 105vh;
-  width: 102.4vw;
+  top: -3vh;
+  left: -2vw;
+  height: 109vh;
+  width: 103vw;
   max-width: none;
   margin: 0;
   overflow: hidden;
@@ -334,37 +333,23 @@ html {
   /* Background is controlled in WorthMap.vue */
 }
 
+.resize-handle {
+  width: 5px;
+  cursor: col-resize;
+  background-color: transparent;
+  transition: background-color 0.2s;
+  z-index: 100;
+}
+
+.resize-handle:hover,
+.resize-handle:active {
+  background-color: #42b983;
+}
+
 /* Force pre-wrap for task descriptions to show bullet points */
 :deep(.scenario-description),
 :deep(p) {
   white-space: pre-wrap;
-}
-
-/* Responsive Adjustments */
-@media (max-width: 768px) {
-  .toolbar {
-    height: auto;
-    flex-wrap: wrap;
-    padding: 10px;
-  }
-
-  .center-controls {
-    order: 3;
-    width: 100%;
-    justify-content: center;
-    margin-top: 10px;
-    flex-wrap: wrap;
-  }
-
-}
-
-.analysis-path-list {
-  background: #f9f9f9;
-  border: 1px solid #eee;
-  border-radius: 4px;
-  padding: 10px;
-  max-height: 300px;
-  overflow-y: auto;
 }
 
 /* Dark Mode Styles */

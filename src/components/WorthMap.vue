@@ -6,6 +6,12 @@
   ]">
     <!-- D3 will insert the SVG here -->
 
+    <!-- Loading Spinner -->
+    <div v-if="isInitializing" class="loading-overlay">
+      <div class="spinner"></div>
+      <div class="loading-text">Loading...</div>
+    </div>
+
     <!-- Evaluation Mode Vignette -->
     <div v-if="mode === 'evaluation'" class="vignette-overlay"></div>
 
@@ -134,7 +140,7 @@ const selectedNodeIds = ref(new Set()); // For Multi-Selection (Cluster)
 const isHighlightActive = ref(false);
 const isHoverHighlight = ref(false);
 const initialViewParsed = ref(false);
-const isMinimapVisible = ref(false);
+const isMinimapVisible = ref(false); // Initially hidden
 const collapsedGroups = ref({
   appreciated: false,
   requested: false
@@ -150,6 +156,12 @@ const { tutorialStep, tutorialHint, shakingNodeId, activeSpotlightNodes, validat
   graphUpdateTrigger
 );
 
+// Dynamic Layout Spacing based on Screen Height
+const getLayerSpacing = () => {
+  const h = containerHeight || 800;
+  return Math.max(90, Math.min(150, h / 6.5));
+};
+
 // Fixed position based on layer logic (Screen coordinates)
 const getFixedTutorialPosition = (step) => {
   const content = tutorialContent[step];
@@ -164,14 +176,15 @@ const getFixedTutorialPosition = (step) => {
   let graphY = centerY;
 
   // Map layer ID to Y coordinate (same logic as layout)
+  const spacing = getLayerSpacing();
   const layerOffsets = {
-    hoe: -225,
-    quality: -75,
-    feature: 75,
-    nshc: 225,
-    feature_req: 375,
-    quality_req: 525,
-    hoe_req: 675
+    hoe: -1.5 * spacing,
+    quality: -0.5 * spacing,
+    feature: 0.5 * spacing,
+    nshc: 1.5 * spacing,
+    feature_req: 2.5 * spacing,
+    quality_req: 3.5 * spacing,
+    hoe_req: 4.5 * spacing
   };
 
   if (layer && layerOffsets[layer] !== undefined) {
@@ -262,12 +275,12 @@ const getValidationError = (source, target) => {
 
 const deleteNode = (nodeId) => {
   deleteNodeFromData(nodeId);
-  nextTick(() => updateGraph());
+  graphUpdateTrigger.value++;
 };
 
 const deleteLink = (linkData) => {
   deleteLinkFromData(linkData);
-  nextTick(() => updateGraph());
+  graphUpdateTrigger.value++;
 };
 
 const toggleGroup = (group) => {
@@ -308,6 +321,7 @@ const drawControls = () => {
   const h = mapContainer.value?.clientHeight || 800;
   const centerY = h / 2;
   const counts = layerCounts.value;
+  const spacing = getLayerSpacing();
 
   const showLayer = {
     nshc: true,
@@ -320,7 +334,7 @@ const drawControls = () => {
   };
 
   const buttonData = safeLevels.filter(l => showLayer[l.id]).map(level => {
-    const rawY = centerY + (1.5 - level.index) * 150;
+    const rawY = centerY + (1.5 - level.index) * spacing;
     // X is now calculated separately in updateControlPositions to save performance
     return { id: level.id, y: rawY, label: level.label };
   });
@@ -378,16 +392,14 @@ const updateControlPositions = () => {
     const nodes = simulation.nodes();
     for (let i = 0; i < nodes.length; i++) {
       const n = nodes[i];
-      const x = (n.fx ?? n.x) || 0;
-      if (layerMaxX[n.type] === undefined || x > layerMaxX[n.type]) {
-        layerMaxX[n.type] = x;
+      const xPos = (n.fx ?? n.x) || 0;
+      if (layerMaxX[n.type] === undefined || xPos > layerMaxX[n.type]) {
+        layerMaxX[n.type] = xPos;
       }
     }
   }
 
   const controlsLayer = svg.select(".controls-layer");
-  // Nur Transformation updaten, keine DOM-Elemente erzeugen/löschen
-  // Only update transformation, do not create/delete DOM elements
   controlsLayer.selectAll("g.add-btn-group").attr("transform", function (d) {
     let rawX = 0;
     if (layerMaxX[d.id] !== undefined) {
@@ -423,7 +435,7 @@ const addNodeAt = (type, x, y) => {
 
   const newNode = createNode(type, targetX, y);
   addNodeToData(newNode);
-  nextTick(() => updateGraph());
+  graphUpdateTrigger.value++;
 };
 
 const updateSpotlight = () => {
@@ -517,6 +529,7 @@ const updateGraph = () => {
     const oldNodes = new Map(simulation.nodes().map(n => [n.id, n]));
     const h = mapContainer.value?.clientHeight || 800;
     const centerY = h / 2;
+    const spacing = getLayerSpacing();
 
     nodes.forEach(n => {
       const old = oldNodes.get(n.id);
@@ -532,7 +545,7 @@ const updateGraph = () => {
       // Layout Logic: ALWAYS snap Y position to the correct layer
       const level = safeLevels.find(l => l.id === n.type);
       if (level) {
-        const layerCenter = centerY + (1.5 - level.index) * 150;
+        const layerCenter = centerY + (1.5 - level.index) * spacing;
 
         // Preserve horizontal position if it exists (from drag or load)
         if (n.fx === undefined || n.fx === null) {
@@ -617,6 +630,7 @@ const updateGraph = () => {
     const zoneWidth = 40000; // Sufficiently wide
     const xStart = -zoneWidth / 2;
     const xEnd = zoneWidth / 2;
+    const spacing = getLayerSpacing();
 
     // 4. Visual Hierarchy: Background Bands
     const getEvaluationColor = (id) => {
@@ -631,13 +645,13 @@ const updateGraph = () => {
     const getColor = (id) => props.mode === 'evaluation' ? getEvaluationColor(id) : safeGetColor(id);
 
     const bands = [
-      { id: 'hoe', y: -20000, height: (centerY - 150) - (-20000), color: getColor('hoe') },
-      { id: 'quality', y: centerY - 150, height: 150, color: getColor('quality') },
-      { id: 'feature', y: centerY, height: 150, color: getColor('feature') },
-      { id: 'nshc', y: centerY + 150, height: 150, color: getColor('nshc') },
-      { id: 'feature_req', y: centerY + 300, height: 150, color: getColor('feature_req') },
-      { id: 'quality_req', y: centerY + 450, height: 150, color: getColor('quality_req') },
-      { id: 'hoe_req', y: centerY + 600, height: 1000, color: getColor('hoe_req') }
+      { id: 'hoe', y: -20000, height: (centerY - spacing) - (-20000), color: getColor('hoe') },
+      { id: 'quality', y: centerY - spacing, height: spacing, color: getColor('quality') },
+      { id: 'feature', y: centerY, height: spacing, color: getColor('feature') },
+      { id: 'nshc', y: centerY + spacing, height: spacing, color: getColor('nshc') },
+      { id: 'feature_req', y: centerY + 2 * spacing, height: spacing, color: getColor('feature_req') },
+      { id: 'quality_req', y: centerY + 3 * spacing, height: spacing, color: getColor('quality_req') },
+      { id: 'hoe_req', y: centerY + 4 * spacing, height: 1000, color: getColor('hoe_req') }
     ];
 
     // Optimization: Use D3 join instead of remove/append for better performance
@@ -652,14 +666,14 @@ const updateGraph = () => {
       .style("transition", "opacity 0.3s ease");
 
     // Lines relative to center: centerY - 150, centerY, centerY + 150
-    // HOE < -150 < Quality < 0 < Feature < 150 < NSHC
+    // HOE < -spacing < Quality < 0 < Feature < spacing < NSHC
     const lines = [
-      { y: centerY - 150, style: 'dashed' },
+      { y: centerY - spacing, style: 'dashed' },
       { y: centerY, style: 'dashed' },
-      { y: centerY + 150, style: 'solid' }, // NSHC Separator Top
-      { y: centerY + 300, style: 'solid' }, // NSHC Separator Bottom (now solid)
-      { y: centerY + 450, style: 'dashed' },
-      { y: centerY + 600, style: 'dashed' }
+      { y: centerY + spacing, style: 'solid' }, // NSHC Separator Top
+      { y: centerY + 2 * spacing, style: 'solid' }, // NSHC Separator Bottom (now solid)
+      { y: centerY + 3 * spacing, style: 'dashed' },
+      { y: centerY + 4 * spacing, style: 'dashed' }
     ];
 
     // Filter lines based on progressive disclosure (same logic as buttons)
@@ -689,13 +703,13 @@ const updateGraph = () => {
 
     // Labels (Positioned left, but within zoom range)
     const labels = [
-      { text: "Human-Oriented Elements", y: centerY - 225 },
-      { text: "Quality", y: centerY - 75 },
-      { text: "Feature", y: centerY + 75 },
-      { text: "NSHC", y: centerY + 225 },
-      { text: "Feature", y: centerY + 375 },
-      { text: "Quality", y: centerY + 525 },
-      { text: "Human-Oriented Elements", y: centerY + 675 }
+      { text: "Human-Oriented Elements", y: centerY - 1.5 * spacing },
+      { text: "Quality", y: centerY - 0.5 * spacing },
+      { text: "Feature", y: centerY + 0.5 * spacing },
+      { text: "NSHC", y: centerY + 1.5 * spacing },
+      { text: "Feature", y: centerY + 2.5 * spacing },
+      { text: "Quality", y: centerY + 3.5 * spacing },
+      { text: "Human-Oriented Elements", y: centerY + 4.5 * spacing }
     ];
 
     gridLayer.selectAll(".layer-label")
@@ -733,8 +747,8 @@ const updateGraph = () => {
     // Simple redraw for group labels as they are interactive and few
     gridLayer.selectAll(".group-label-appreciated, .group-label-requested").remove();
     if (props.mode !== 'evaluation' || props.analyzingView === 'zones') {
-      drawGroupLabel("Appreciated Worth", "appreciated", centerY - 75);
-      drawGroupLabel("Requested Worth", "requested", centerY + 525);
+      drawGroupLabel("Appreciated Worth", "appreciated", centerY - 0.5 * spacing);
+      drawGroupLabel("Requested Worth", "requested", centerY + 3.5 * spacing);
     }
 
   } else if (props.mode === 'evaluation' && props.analyzingView === 'axis') {
@@ -742,17 +756,18 @@ const updateGraph = () => {
     gridLayer.selectAll("*").remove(); // Clear zones if switching to axis
     const h = mapContainer.value?.clientHeight || 800;
     const centerY = h / 2;
+    const spacing = getLayerSpacing();
 
     // Axis through NSHC (Pivot)
     gridLayer.append("line")
       .attr("class", "axis-element")
       .attr("x1", -4000).attr("x2", 4000)
-      .attr("y1", centerY + 225).attr("y2", centerY + 225)
+      .attr("y1", centerY + 1.5 * spacing).attr("y2", centerY + 1.5 * spacing)
       .attr("stroke", "#42b983").attr("stroke-width", 2).attr("stroke-dasharray", "10,5").attr("opacity", 0.5);
 
     gridLayer.append("text")
       .attr("class", "axis-element")
-      .attr("x", -450).attr("y", centerY + 220)
+      .attr("x", -450).attr("y", centerY + 1.5 * spacing - 5)
       .attr("text-anchor", "start")
       .attr("fill", "#42b983").attr("font-size", "10px").attr("font-weight", "bold").style("letter-spacing", "2px")
       .text("VALUE EXCHANGE AXIS");
@@ -1481,9 +1496,10 @@ onMounted(() => {
         const h = mapContainer.value?.clientHeight || 800;
         // Snap Y to Layer Center
         const level = safeLevels.find(l => l.id === d.type);
+        const spacing = getLayerSpacing();
         const centerY = h / 2;
         if (level) {
-          const layerCenter = centerY + (1.5 - level.index) * 150;
+          const layerCenter = centerY + (1.5 - level.index) * spacing;
           if (d.type === 'hoe' || d.type === 'hoe_req') {
             // Snap to 2 rows
             if (d.isHoeLockedRow) {
@@ -1519,10 +1535,11 @@ onMounted(() => {
         // On Release: Snap to zone
         // Logic is now handled during drag (snap), but ensure it here too
         const h = mapContainer.value?.clientHeight || 800;
+        const spacing = getLayerSpacing();
         const level = safeLevels.find(l => l.id === d.type);
         const centerY = h / 2;
         if (level) {
-          const layerCenter = centerY + (1.5 - level.index) * 150;
+          const layerCenter = centerY + (1.5 - level.index) * spacing;
           if (d.type === 'hoe' || d.type === 'hoe_req') {
             // Snap to 2 rows
             if (d.isHoeLockedRow) {
@@ -1566,8 +1583,12 @@ onMounted(() => {
         d.vx = 0;
         d.vy = 0;
 
-        // Persist position to store
-        updateNode(d.id, { x: d.x, y: d.y, fx: d.fx, fy: d.fy });
+        // Persist final position
+        const updates = [{ id: d.id, changes: { fx: d.fx, fy: d.fy, x: d.fx, y: d.fy } }];
+        if (overlappingNode) {
+          updates.push({ id: overlappingNode.id, changes: { fx: d.startX, fy: d.startY, x: d.startX, y: d.startY } });
+        }
+        updateNodesBulk(updates);
       }
     });
 
@@ -1709,11 +1730,12 @@ onMounted(() => {
   // Resize Observer
   resizeObserver = new ResizeObserver(() => {
     if (mapContainer.value && simulation) {
-      const w = containerWidth || mapContainer.value.clientWidth;
-      const h = containerHeight || mapContainer.value.clientHeight;
-      containerWidth = w;
-      containerHeight = h;
-      if (svg) svg.attr("width", w).attr("height", h);
+      containerWidth = mapContainer.value.clientWidth;
+      containerHeight = mapContainer.value.clientHeight;
+      if (svg) svg.attr("width", containerWidth).attr("height", containerHeight);
+
+      // Update graph to apply new spacing
+      updateGraph();
 
       // No forces on resize for static layout
       // Just restart to ensure rendering
@@ -1744,8 +1766,8 @@ const updateMinimap = () => {
   const nodes = simulation.nodes();
   const links = simulation.force("link").links();
 
-  isMinimapVisible.value = nodes.length > 0;
-  if (!isMinimapVisible.value) return;
+  isMinimapVisible.value = nodes.length > 0; // Now controlled by user via button
+  if (!isMinimapVisible.value && nodes.length > 0) return;
 
   const mainTransform = d3.zoomTransform(svg.node());
   const mainW = mapContainer.value.clientWidth;
@@ -1798,18 +1820,10 @@ watch(() => props.mode, () => {
   }
 });
 
-watch(_graphData, (newData, oldData) => {
+watch(graphUpdateTrigger, () => {
   if (isInitializing.value || isInternalUpdate.value) return;
   updateGraph();
-
-  // Auto-fit if we went from empty/small to populated (loading from autosave)
-  const oldLen = oldData?.nodes?.length || 0;
-  const newLen = newData?.nodes?.length || 0;
-  if (oldLen < 2 && newLen > 2) {
-    setTimeout(zoomToFit, 150);
-  }
-  // updateTutorialStep is called inside updateGraph
-}, { deep: true });
+});
 
 watch(() => props.visibleLayers, () => {
   updateGraph();
@@ -1858,7 +1872,7 @@ const handleContextAction = (action, payload) => {
       updateGraph();
     } else {
       updateLinkColor(target, payload);
-      nextTick(() => updateGraph());
+      graphUpdateTrigger.value++;
     }
   } else if (action === 'start-connection') {
     pendingConnectionSource.value = target.id;
@@ -1881,7 +1895,7 @@ const handleContextAction = (action, payload) => {
       name: target.name + " (Copy)"
     });
     addNodeToData(newNode);
-    nextTick(() => updateGraph());
+    graphUpdateTrigger.value++;
   } else if (action === 'highlight-in') {
     highlightDirectional(target, 'in');
   } else if (action === 'highlight-out') {
@@ -1903,13 +1917,14 @@ const zoom = (factor) => {
 
 const resetGraph = () => {
   resetGraphData();
-  nextTick(() => updateGraph());
+  graphUpdateTrigger.value++;
 };
 
 const smartLayout = () => {
   if (!simulation) return;
   const h = mapContainer.value?.clientHeight || 800;
   const centerY = h / 2;
+  const spacing = getLayerSpacing();
   const { links, nodes } = getRawData();
 
   // 1. Reset velocities and positions for deterministic result
@@ -1928,7 +1943,7 @@ const smartLayout = () => {
   simulation.nodes().forEach(n => {
     const level = safeLevels.find(l => l.id === n.type);
     if (level) {
-      const layerCenter = centerY + (1.5 - level.index) * 150;
+      const layerCenter = centerY + (1.5 - level.index) * spacing;
       if (n.type === 'hoe' || n.type === 'hoe_req') {
         const row1 = layerCenter;
         const row2 = n.type === 'hoe' ? layerCenter - 80 : layerCenter + 80;
@@ -2015,6 +2030,7 @@ const smartLayout = () => {
   });
   updateNodesBulk(updates);
 
+  graphUpdateTrigger.value++;
   nextTick(() => {
     zoomToFit();
   });
@@ -2024,32 +2040,33 @@ const loadGraphDataHandler = (data) => {
   // 1. Lock updates to prevent watcher interference during data swap
   isInitializing.value = true;
 
-  // 2. Stop simulation temporarily
-  if (simulation) simulation.stop();
+  // Use setTimeout to allow the UI to render the spinner before heavy lifting
+  setTimeout(() => {
+    // 2. Stop simulation temporarily
+    if (simulation) simulation.stop();
 
-  // 3. Load data into store
-  loadGraphData(data);
+    // 3. Load data into store
+    loadGraphData(data);
 
-  // 4. Check for empty data (e.g. New Draft) and populate defaults
-  const { nodes } = getRawData();
-  if (nodes.length === 0) {
-    isInitializing.value = false; // Unlock so initialize can run
-    initializeDefaultGraph();
-    return;
-  }
+    // 4. Check for empty data
+    const { nodes } = getRawData();
+    if (nodes.length === 0) {
+      isInitializing.value = false;
+      initializeDefaultGraph();
+      return;
+    }
 
-  initialViewParsed.value = false; // Force re-center on new data load
+    initialViewParsed.value = false;
 
-  // 5. Force update sequence
-  requestAnimationFrame(() => {
-    isInitializing.value = false;
+    // 5. Update and finish
     updateGraph();
-    // Use setTimeout to allow D3 simulation a moment to tick and stabilize
+
+    // Give D3 a moment to settle layout before hiding spinner and zooming
     setTimeout(() => {
-      updateGraph();
       zoomToFit();
-    }, 50);
-  });
+      isInitializing.value = false;
+    }, 400); // Visible delay for feedback
+  }, 50);
 };
 
 const zoomToFit = () => {
@@ -2160,6 +2177,7 @@ const initializeDefaultGraph = () => {
 
   const transform = d3.zoomTransform(svg.node());
   const centerY = (mapContainer.value.clientHeight / 2 - transform.y) / transform.k;
+  const spacing = getLayerSpacing();
 
   const nodeTemplates = [
     { id: 'nshc', name: 'Start: New NSHC' },
@@ -2174,7 +2192,7 @@ const initializeDefaultGraph = () => {
   const initialNodes = nodeTemplates.map(template => {
     const level = safeLevels.find(l => l.id === template.id);
     if (!level) return null;
-    const layerY = centerY + (1.5 - level.index) * 150;
+    const layerY = centerY + (1.5 - level.index) * spacing;
     return createNode(template.id, 0, layerY, {
       name: template.name,
       isEditing: false,
@@ -2187,7 +2205,7 @@ const initializeDefaultGraph = () => {
 
   setTimeout(() => {
     isInitializing.value = false;
-    nextTick(() => {
+    nextTick(() => { // Ensure DOM is ready for D3
       updateGraph();
       zoomToFit();
     });
@@ -2223,6 +2241,39 @@ defineExpose({
   background-color: #f8f9fa;
   /* Standard Background */
   transition: background-color 0.3s;
+}
+
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  backdrop-filter: blur(4px);
+  transition: opacity 0.3s ease;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #42b983;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 15px;
+}
+
+.loading-text {
+  color: #2c3e50;
+  font-weight: 600;
+  font-size: 1.1rem;
+  letter-spacing: 0.5px;
 }
 
 .worth-map-container.dark-mode {
@@ -2311,6 +2362,14 @@ defineExpose({
   stroke-opacity: 1;
   stroke-dasharray: 10, 5;
   animation: flow-animation 1s linear infinite;
+}
+
+.dark-mode .loading-overlay {
+  background: rgba(11, 14, 20, 0.9);
+}
+
+.dark-mode .loading-text {
+  color: #E6E8EB;
 }
 
 .highlight-active :deep(.node.selected-highlight rect) {
@@ -2519,6 +2578,39 @@ defineExpose({
   margin: 0;
   font-size: 0.9rem;
   color: #555;
+}
+
+/* Responsive Adjustments for Overlays */
+@media (max-width: 1024px) {
+  .evaluation-info-card {
+    right: 10px;
+    max-width: 220px;
+  }
+}
+
+@media (max-height: 768px) {
+  .evaluation-info-card {
+    padding: 10px;
+    max-width: 250px;
+    bottom: 60px;
+  }
+
+  .info-header h4 {
+    font-size: 0.9rem;
+  }
+
+  .info-content p {
+    font-size: 0.8rem;
+  }
+
+  .tutorial-card {
+    padding: 10px 15px;
+    max-width: 220px;
+  }
+
+  .tutorial-card h4 {
+    font-size: 0.9rem;
+  }
 }
 
 .info-icon {

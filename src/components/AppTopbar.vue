@@ -41,7 +41,6 @@
                         <div class="menu-section-label">View</div>
                         <button @click="$emit('zoom-to-fit')">⤢ Fit to Screen</button>
                         <div class="menu-section-label">Study</div>
-                        <button @click="$emit('toggle-tasks')">📝 Tasks</button>
                         <button @click="$emit('toggle-sus')">📋 SUS-Questionnaire</button>
                     </div>
                 </div>

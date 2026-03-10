@@ -13,7 +13,7 @@
                                     @click="$emit('toggle-layer', layer.id)" :title="layer.title">
                                     {{ layer.text }}
                                     <span v-if="layerCounts[layer.id]" class="count-badge">{{ layerCounts[layer.id]
-                                        }}</span>
+                                    }}</span>
                                 </button>
                             </div>
                         </div>
@@ -204,7 +204,8 @@ const layerCounts = computed(() => {
 .action-btn {
     padding: 4px 12px;
     font-size: 0.85rem;
-    border: 1px solid #d0d7de;
+    border: 1px solid transparent;
+    /* Consistent with filter-pill base */
     /* Outlined Ghost Button */
     background: transparent;
     border-radius: 6px;
@@ -215,6 +216,8 @@ const layerCounts = computed(() => {
     flex: 1;
     /* Distribute evenly */
     white-space: nowrap;
+    border-color: #d0d7de;
+    /* Default border */
 }
 
 .action-btn:focus {
@@ -440,5 +443,54 @@ const layerCounts = computed(() => {
 :global(.dark-mode) .actions-panel+.drawer-toggle-btn {
     background-color: #161B22;
     border-color: #30363D;
+}
+
+/* Responsive Adjustments for smaller laptop screens */
+@media (max-width: 1600px) {
+    .toolbar-panel {
+        padding: 8px 12px !important;
+        gap: 8px;
+        max-width: 90vw !important;
+    }
+
+    .action-btn,
+    .filter-pill {
+        padding: 4px 8px !important;
+        font-size: 0.8rem !important;
+        line-height: 1.2 !important;
+        min-height: 28px !important;
+    }
+}
+
+@media (max-width: 1400px) {
+    .toolbar-panel {
+        padding: 6px 10px !important;
+        gap: 6px !important;
+        min-width: auto !important;
+    }
+
+    .action-btn,
+    .filter-pill {
+        padding: 3px 8px !important;
+        font-size: 0.75rem !important;
+        min-height: 24px !important;
+    }
+}
+
+@media (max-width: 1200px) {
+    .toolbar-panel {
+        padding: 4px 8px !important;
+        gap: 4px !important;
+    }
+
+    .action-btn,
+    .filter-pill {
+        padding: 2px 6px !important;
+        font-size: 0.7rem !important;
+    }
+
+    .filter-header {
+        font-size: 0.6rem !important;
+    }
 }
 </style>
