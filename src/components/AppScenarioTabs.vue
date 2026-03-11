@@ -1,5 +1,5 @@
 <template>
-    <div class="scenario-tabs">
+    <div class="scenario-tabs" :class="{ 'dark-mode': isDarkMode }">
         <div v-for="scenario in scenarios" :key="scenario.id" class="tab"
             :class="{ active: currentScenarioId === scenario.id }" @click="$emit('switch', scenario.id)"
             @contextmenu.prevent="openContextMenu($event, scenario)">
@@ -35,7 +35,8 @@ const props = defineProps({
     currentScenarioId: {
         type: [Number, String],
         required: true
-    }
+    },
+    isDarkMode: Boolean
 });
 
 const emit = defineEmits(['switch', 'add', 'delete', 'rename', 'clone', 'update-name']);
@@ -250,36 +251,50 @@ onUnmounted(() => {
 }
 
 /* Dark Mode Support */
-:global(.dark-mode) .scenario-tabs {
-    background-color: #181A1F;
-    border-top-color: #2E3138;
+.scenario-tabs.dark-mode {
+    background-color: #0D1117 !important;
+    border-top-color: #30363D !important;
 }
 
-:global(.dark-mode) .tab {
-    background-color: #2E3138;
-    border-color: #2E3138;
+.scenario-tabs.dark-mode .tab {
+    background-color: #161B22 !important;
+    border-color: #30363D !important;
+    color: #9DA3AE !important;
+}
+
+.scenario-tabs.dark-mode .tab.active {
+    background-color: #21262D !important;
+    color: #E6E8EB !important;
+    border-top-color: #42b983 !important;
+}
+
+.scenario-tabs.dark-mode .add-tab-btn {
     color: #9DA3AE;
+    border-color: #30363D;
 }
 
-:global(.dark-mode) .tab.active {
-    background-color: #1E1F23;
+.scenario-tabs.dark-mode .add-tab-btn:hover {
     color: #E6E8EB;
-    border-top-color: #42b983;
+    border-color: #8b949e;
 }
 
-:global(.dark-mode) .context-menu {
-    background-color: #23252B;
+.scenario-tabs.dark-mode .context-menu {
+    background-color: #161B22;
     box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.5);
-    border-color: #444;
+    border-color: #30363D;
     color: #E6E8EB;
 }
 
-:global(.dark-mode) .context-menu button {
+.scenario-tabs.dark-mode .context-menu button {
     color: #E6E8EB !important;
     /* White/Gray for readability */
 }
 
-:global(.dark-mode) .context-menu button:hover {
-    background-color: #3E4148;
+.scenario-tabs.dark-mode .context-menu button:hover {
+    background-color: #21262D;
+}
+
+.scenario-tabs.dark-mode .tab-edit-input {
+    color: #E6E8EB;
 }
 </style>

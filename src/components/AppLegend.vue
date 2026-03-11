@@ -1,8 +1,8 @@
 <template>
     <Transition name="fade">
-        <div v-if="showLegend && currentMode !== 'evaluation'" class="legend">
+        <div v-if="showLegend && currentMode !== 'evaluation'" class="legend" :class="{ 'dark-mode': isDarkMode }">
             <div class="legend-header">
-                <h4>Shortcuts</h4>
+                <h4><b>Shortcuts</b></h4>
             </div>
             <div class="legend-content">
                 <div class="legend-section">
@@ -24,7 +24,8 @@
         </div>
     </Transition>
     <button v-if="currentMode !== 'evaluation'" class="legend-toggle-btn"
-        @click="$emit('update:showLegend', !showLegend)" :class="{ active: showLegend }" title="Toggle Legend">
+        @click="$emit('update:showLegend', !showLegend)" :class="{ active: showLegend, 'dark-mode': isDarkMode }"
+        title="Toggle Legend">
         ℹ️
     </button>
 </template>
@@ -33,7 +34,8 @@
 defineProps({
     showLegend: Boolean,
     currentMode: String,
-    isLinkingMode: Boolean
+    isLinkingMode: Boolean,
+    isDarkMode: Boolean
 });
 
 defineEmits(['update:showLegend']);
@@ -42,13 +44,13 @@ defineEmits(['update:showLegend']);
 <style scoped>
 .legend {
     position: absolute;
-    bottom: 82px;
+    bottom: 80px;
     right: 30px;
-    width: 220px;
-    height: 190px;
+    width: 240px;
+    height: auto;
     border: 1px solid #414141;
-    background: rgba(255, 255, 255, 0.9);
-    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.95);
+    padding: 2px 12px 8px;
     border-radius: 8px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     z-index: 100;
@@ -66,17 +68,18 @@ defineEmits(['update:showLegend']);
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 5px;
-    font-size: 0.9rem;
+    margin-bottom: 3px;
+    font-size: 0.85rem;
 }
 
 .legend-content {
-    overflow-y: auto;
-    flex-grow: 1;
+    overflow-y: hidden;
+    /* flex-grow: 1; */
+    /* Removed to allow content to sit at the top */
 }
 
 .legend-section {
-    margin-bottom: 10px;
+    margin-bottom: 5px;
 }
 
 .legend-section:last-child {
@@ -87,15 +90,12 @@ defineEmits(['update:showLegend']);
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    margin-bottom: 8px;
+    margin-bottom: 5px;
     flex-shrink: 0;
 }
 
 .legend-header h4 {
     margin: 0;
-    font-size: 0.9rem;
-    font-weight: 700;
-    /* Bold as requested */
 }
 
 .legend-toggle-btn {
@@ -120,7 +120,8 @@ defineEmits(['update:showLegend']);
 
 .legend-toggle-btn:hover,
 .legend-toggle-btn.active {
-    background: #f0f0f0;
+    background-color: #f0f0f0;
+    /* Light mode hover/active */
 }
 
 kbd {
@@ -149,21 +150,26 @@ kbd {
 }
 
 /* Dark Mode Support */
-:global(.dark-mode) .legend {
-    background: rgba(35, 37, 43, 0.95) !important;
-    border-color: #555 !important;
+.legend.dark-mode {
+    background-color: #161B22 !important;
+    border-color: #30363D !important;
     color: #E6E8EB !important;
 }
 
-:global(.dark-mode) .legend-toggle-btn {
-    background-color: #23252B;
-    border: 1px solid #555;
-    color: #E6E8EB;
+.legend-toggle-btn.dark-mode {
+    background-color: #161B22 !important;
+    border: 1px solid #30363D !important;
+    color: #E6E8EB !important;
 }
 
-:global(.dark-mode) kbd {
-    background-color: #2E3138;
-    border-color: #555;
+.legend-toggle-btn.dark-mode:hover,
+.legend-toggle-btn.dark-mode.active {
+    background-color: #21262D !important;
+}
+
+.legend.dark-mode kbd {
+    background-color: #21262D;
+    border-color: #30363D;
     color: #E6E8EB;
     box-shadow: 0 1px 1px rgba(0, 0, 0, .5), 0 2px 0 0 rgba(255, 255, 255, .1) inset;
 }

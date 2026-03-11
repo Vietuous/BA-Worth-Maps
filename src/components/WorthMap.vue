@@ -12,54 +12,54 @@
       <div class="loading-text">Loading...</div>
     </div>
 
-    <!-- Evaluation Mode Vignette -->
-    <div v-if="mode === 'evaluation'" class="vignette-overlay"></div>
-
-    <!-- Tutorial Hint (Dynamic) -->
-    <Transition name="fade">
-      <div v-if="tutorialHint" class="tutorial-hint-toast">
-        {{ tutorialHint }}
-      </div>
-    </Transition>
-
-    <!-- Tutorial Overlay -->
-    <div v-if="tutorialStep && mode === 'map' && showTutorial" class="tutorial-overlay-container">
-      <div class="tutorial-card" :style="getFixedTutorialPosition(tutorialStep)">
-        <button class="close-tutorial-btn" @click="$emit('toggle-tutorial')" title="Close Tutorial">×</button>
-        <h4>{{ tutorialContent[tutorialStep]?.title }}</h4>
-        <p>{{ tutorialContent[tutorialStep]?.text }}</p>
-        <button v-if="tutorialContent[tutorialStep]?.isOptional" class="skip-btn" @click="handleSkipStep">Skip
-          Step</button>
-      </div>
-    </div>
-
-    <!-- Evaluation Mode Info -->
-    <div v-if="mode === 'evaluation'" class="evaluation-info-card" :class="{ collapsed: isEvalInfoCollapsed }">
-      <div class="info-header">
-        <h4>Evaluation Mode</h4>
-        <button class="toggle-info-btn" @click="isEvalInfoCollapsed = !isEvalInfoCollapsed">
-          {{ isEvalInfoCollapsed ? 'ℹ️' : '×' }}
-        </button>
-      </div>
-      <div class="info-content" v-if="!isEvalInfoCollapsed">
-        <p>Click on any node to highlight its value creation chain. Use this view to present the flow from Feature to
-          Human Value.</p>
-      </div>
-    </div>
-
-    <!-- Validation Tooltip -->
-    <div v-if="validationMsg" class="validation-tooltip"
-      :style="{ left: screenMousePosition.x + 15 + 'px', top: screenMousePosition.y + 15 + 'px' }">
-      {{ validationMsg }}
-    </div>
-
-    <!-- Context Menu -->
-    <AppContextMenu :visible="contextMenu.visible" :x="contextMenu.x" :y="contextMenu.y" :item="contextMenu.item"
-      :type="contextMenu.type" v-model:view="contextMenu.view" @action="handleContextAction" />
-
-    <!-- Minimap -->
-    <AppMinimap ref="minimapComponent" :visible="isMinimapVisible" @minimap-click="handleMinimapClick" />
   </div>
+
+  <!-- Tutorial Hint (Dynamic) -->
+  <Transition name="fade">
+    <div v-if="tutorialHint" class="tutorial-hint-toast">
+      {{ tutorialHint }}
+    </div>
+  </Transition>
+
+  <!-- Tutorial Overlay -->
+  <div v-if="tutorialStep && mode === 'map' && showTutorial" class="tutorial-overlay-container">
+    <div class="tutorial-card" :style="getFixedTutorialPosition(tutorialStep)">
+      <button class="close-tutorial-btn" @click="$emit('toggle-tutorial')" title="Close Tutorial">×</button>
+      <h4>{{ tutorialContent[tutorialStep]?.title }}</h4>
+      <p>{{ tutorialContent[tutorialStep]?.text }}</p>
+      <button v-if="tutorialContent[tutorialStep]?.isOptional" class="skip-btn" @click="handleSkipStep">Skip
+        Step</button>
+    </div>
+  </div>
+
+  <!-- Evaluation Mode Info -->
+  <div v-if="mode === 'evaluation'" class="evaluation-info-card" :class="{ collapsed: isEvalInfoCollapsed }">
+    <div class="info-header">
+      <h4>Evaluation Mode</h4>
+      <button class="toggle-info-btn" @click="isEvalInfoCollapsed = !isEvalInfoCollapsed">
+        {{ isEvalInfoCollapsed ? 'ℹ️' : '×' }}
+      </button>
+    </div>
+    <div class="info-content" v-if="!isEvalInfoCollapsed">
+      <p>Click on any node to highlight its value creation chain. Use this view to present the flow from Feature to
+        Human Value.</p>
+    </div>
+  </div>
+
+  <!-- Validation Tooltip -->
+  <div v-if="validationMsg" class="validation-tooltip"
+    :style="{ left: screenMousePosition.x + 15 + 'px', top: screenMousePosition.y + 15 + 'px' }">
+    {{ validationMsg }}
+  </div>
+
+  <!-- Context Menu -->
+  <AppContextMenu :visible="contextMenu.visible" :x="contextMenu.x" :y="contextMenu.y" :item="contextMenu.item"
+    :type="contextMenu.type" v-model:view="contextMenu.view" @action="handleContextAction"
+    :is-dark-mode="props.isDarkMode" />
+
+  <!-- Minimap -->
+  <AppMinimap ref="minimapComponent" :visible="isMinimapVisible" @minimap-click="handleMinimapClick"
+    :is-dark-mode="props.isDarkMode" />
 </template>
 
 <script setup>
@@ -70,7 +70,7 @@ import AppMinimap from "./AppMinimap.vue";
 import { useGraphData } from "./useGraphData";
 import { getConnectedPath, getDirectionalNodes } from "./useGraphTraversal";
 import { resolveOverlaps } from "./useLayout";
-import { linkPalette, safeGetColor, safeGetNodeHeight, safeGetNodeWidth, safeLevels } from "./useStyling";
+import { linkPalette, safeGetNodeHeight, safeGetNodeWidth, safeLevels } from "./useStyling";
 import { checkFullChain, countFullChains, useTutorial } from "./useTutorial";
 import { useValidation } from "./useValidation";
 
@@ -103,6 +103,18 @@ const props = defineProps({
 
 const emit = defineEmits(["node-selected", "graph-stats", "toggle-tutorial"]);
 
+const layerColors = {
+  nshc: '#FFF176',       // Yellow 300 (Balanced)
+  feature: '#BA68C8',    // Purple 300 (Balanced)
+  quality: '#81C784',    // Green 300 (Balanced)
+  hoe: '#E57373',      // Red 300 (Balanced)
+  feature_req: '#BA68C8',
+  quality_req: '#81C784',
+  hoe_req: '#E57373',
+};
+const getLayerColor = (layerId) => layerColors[layerId] || '#ccc';
+const getLayerStrokeColor = (layerId) => layerId === 'nshc' ? '#F9A825' : (layerColors[layerId] || '#ccc');
+
 const mapContainer = ref(null);
 const minimapComponent = ref(null);
 let resizeObserver = null;
@@ -118,6 +130,7 @@ let containerWidth = 0;
 let containerHeight = 0;
 let linkPathsVisible = null;
 let linkPathsHit = null;
+let spotlightOverlay = null; // Performance: Cache spotlight selection
 let quadtree = null; // For performant node lookups
 const mousePosition = ref({ x: 0, y: 0 });
 const isInitializing = ref(false); // Fix: Prevent recursive updates during init
@@ -129,9 +142,6 @@ const currentZoomTransform = ref(d3.zoomIdentity);
 const editingNode = ref(null);
 const graphUpdateTrigger = ref(0);
 let lastEmittedStats = null;
-let statsTimeout = null;
-
-const linkColors = linkPalette;
 
 // State for UI Overlays
 const contextMenu = ref({ visible: false, x: 0, y: 0, item: null, type: null, view: 'main' });
@@ -146,6 +156,8 @@ const collapsedGroups = ref({
   requested: false
 });
 const layerCounts = ref({ nshc: 0, feature: 0, quality: 0, hoe: 0, feature_req: 0, quality_req: 0, hoe_req: 0 });
+let statsTimeout = null;
+
 const isEvalInfoCollapsed = ref(false);
 
 // Tutorial Logic Composable
@@ -162,6 +174,12 @@ const getLayerSpacing = () => {
   return Math.max(90, Math.min(150, h / 6.5));
 };
 
+const getLayerY = (levelIndex, centerY, spacing) => {
+  // This formula creates a contiguous layout based on index, preventing gaps.
+  // It maps index 2 (top) to -1.5*spacing and index -4 (bottom) to +4.5*spacing relative to center.
+  return centerY + (0.5 - levelIndex) * spacing;
+};
+
 // Fixed position based on layer logic (Screen coordinates)
 const getFixedTutorialPosition = (step) => {
   const content = tutorialContent[step];
@@ -173,23 +191,11 @@ const getFixedTutorialPosition = (step) => {
   const transform = currentZoomTransform.value;
 
   const layer = content.targetLayer;
-  let graphY = centerY;
 
-  // Map layer ID to Y coordinate (same logic as layout)
   const spacing = getLayerSpacing();
-  const layerOffsets = {
-    hoe: -1.5 * spacing,
-    quality: -0.5 * spacing,
-    feature: 0.5 * spacing,
-    nshc: 1.5 * spacing,
-    feature_req: 2.5 * spacing,
-    quality_req: 3.5 * spacing,
-    hoe_req: 4.5 * spacing
-  };
 
-  if (layer && layerOffsets[layer] !== undefined) {
-    graphY = centerY + layerOffsets[layer];
-  }
+  const level = safeLevels.find(l => l.id === layer);
+  const graphY = level ? getLayerY(level.index, centerY, spacing) : centerY;
 
   // Project to Screen Coordinates
   const screenY = transform.applyY(graphY);
@@ -233,8 +239,8 @@ const getRawData = () => {
   const data = isRef(_graphData) ? _graphData.value : _graphData;
   try {
     return {
-      nodes: JSON.parse(JSON.stringify(data?.nodes || [])),
-      links: JSON.parse(JSON.stringify(data?.links || []))
+      nodes: (data?.nodes || []).map(n => ({ ...n })),
+      links: (data?.links || []).map(l => ({ ...l }))
     };
   } catch (e) {
     console.error("Error copying data:", e);
@@ -312,7 +318,7 @@ const drawControls = () => {
   const controlsLayer = svg.select(".controls-layer");
   if (controlsLayer.empty()) return;
 
-  // Only show in Map Mode
+  // Only show in Map Mode 
   if (props.mode !== 'map') {
     controlsLayer.selectAll("*").remove();
     return;
@@ -334,8 +340,7 @@ const drawControls = () => {
   };
 
   const buttonData = safeLevels.filter(l => showLayer[l.id]).map(level => {
-    const rawY = centerY + (1.5 - level.index) * spacing;
-    // X is now calculated separately in updateControlPositions to save performance
+    const rawY = getLayerY(level.index, centerY, spacing);
     return { id: level.id, y: rawY, label: level.label };
   });
 
@@ -354,7 +359,7 @@ const drawControls = () => {
   enter.append("circle")
     .attr("r", 12)
     .attr("fill", "transparent")
-    .attr("stroke", d => safeGetColor(d.id))
+    .attr("stroke", d => getLayerStrokeColor(d.id))
     .attr("stroke-width", 2)
     .attr("stroke-opacity", 0.7); // More visible (was 0.4)
 
@@ -363,7 +368,7 @@ const drawControls = () => {
     .attr("text-anchor", "middle")
     .attr("dominant-baseline", "central")
     .attr("dy", "1px") // Optical centering
-    .attr("fill", d => safeGetColor(d.id))
+    .attr("fill", d => getLayerStrokeColor(d.id))
     .attr("font-family", "Arial, sans-serif") // Ensure consistent rendering
     .attr("font-size", "16px")
     .attr("font-weight", "bold")
@@ -374,8 +379,8 @@ const drawControls = () => {
     .classed("shake-animation", d => shakingNodeId.value === d.id); // Apply shake class
 
   // Update colors/opacity if needed
-  merge.select("circle").attr("stroke", d => safeGetColor(d.id));
-  merge.select("text").attr("fill", d => safeGetColor(d.id));
+  merge.select("circle").attr("stroke", d => getLayerStrokeColor(d.id));
+  merge.select("text").attr("fill", d => getLayerStrokeColor(d.id));
 
   buttons.exit().remove();
 
@@ -439,8 +444,8 @@ const addNodeAt = (type, x, y) => {
 };
 
 const updateSpotlight = () => {
-  if (!svg) return;
-  const overlay = svg.select(".spotlight-path");
+  if (!spotlightOverlay) return;
+  const overlay = spotlightOverlay;
 
   if (!props.showTutorial || activeSpotlightNodes.value.length === 0) {
     overlay.attr("d", null);
@@ -499,26 +504,22 @@ const updateGraph = () => {
     isInternalUpdate.value = false;
   }
 
-  const rawData = getRawData();
-  // Filter: Keep all data for simulation, but hide visually if needed
-  let nodes = rawData.nodes;
-  let links = rawData.links;
+  const { nodes, links: rawLinks } = getRawData();
+  let links = rawLinks;
 
-  // Pre-calculate HOE connectivity for layout logic
+  // Pre-calculate HOE connectivity for layout logic (Optimized) 
+  const nodeMap = new Map(nodes.map(n => [n.id, n]));
+
   const hoeReceivers = new Set();
   links.forEach(l => {
-    const sId = l.source.id || l.source;
-    const tId = l.target.id || l.target;
-    const s = nodes.find(n => n.id === sId);
-    const t = nodes.find(n => n.id === tId);
-    if (s && t) {
-      const sIsHoe = s.type === 'hoe' || s.type === 'hoe_req';
-      const tIsHoe = t.type === 'hoe' || t.type === 'hoe_req';
-      if (sIsHoe && tIsHoe) hoeReceivers.add(tId);
+    const s = nodeMap.get(l.source.id || l.source);
+    const t = nodeMap.get(l.target.id || l.target);
+    if (s && t && (s.type === 'hoe' || s.type === 'hoe_req') && (t.type === 'hoe' || t.type === 'hoe_req')) {
+      hoeReceivers.add(t.id);
     }
   });
 
-  // Evaluation Mode: Filter out placeholder nodes to clean up the view
+  // Evaluation Mode: Filter out placeholder nodes to clean up the view 
   if (props.mode === 'evaluation') {
     const nodeIds = new Set(nodes.map(n => n.id));
     links = links.filter(l => nodeIds.has(l.source.id || l.source) && nodeIds.has(l.target.id || l.target));
@@ -545,7 +546,8 @@ const updateGraph = () => {
       // Layout Logic: ALWAYS snap Y position to the correct layer
       const level = safeLevels.find(l => l.id === n.type);
       if (level) {
-        const layerCenter = centerY + (1.5 - level.index) * spacing;
+        const layerCenter = getLayerY(level.index, centerY, spacing);
+
 
         // Preserve horizontal position if it exists (from drag or load)
         if (n.fx === undefined || n.fx === null) {
@@ -578,14 +580,15 @@ const updateGraph = () => {
 
   // Initial View: Center camera on leftmost column (only once at start)
   if (!initialViewParsed.value && nodes.length > 0 && svg && zoomBehavior) {
-    const minX = d3.min(nodes, n => n.x) || 0;
-    // Move camera so that layer names (x=-480) are visible.
-    // Translate X = 600 ensures that x=-480 is at Screen X=120.
-    svg.call(zoomBehavior.transform, d3.zoomIdentity.translate(600, 0));
+    // Dynamic centering based on container size instead of hardcoded 600px
+    const cx = containerWidth / 2;
+    const cy = containerHeight / 2;
+
+    svg.call(zoomBehavior.transform, d3.zoomIdentity.translate(cx, cy - 50)); // Slight Y offset for toolbar
     initialViewParsed.value = true;
 
     // Force update of sticky labels after camera move
-    const t = d3.zoomIdentity.translate(600, 0);
+    const t = d3.zoomIdentity.translate(cx, cy - 50);
     const fixedX = (50 - t.x) / t.k;
     svg.selectAll(".layer-label").attr("x", fixedX);
     svg.selectAll(".group-label").attr("transform", d => `translate(${fixedX - 25}, ${d.y}) rotate(-90)`);
@@ -618,8 +621,6 @@ const updateGraph = () => {
     }
   }, 500); // Increased debounce to prevent recursive updates
 
-  graphUpdateTrigger.value++;
-
   // 0. Draw Zones (Visible in Sketch for orientation)
   if (props.mode !== 'evaluation' || props.analyzingView === 'zones') {
     // Cleanup Axis elements if switching from Axis view
@@ -631,51 +632,45 @@ const updateGraph = () => {
     const xStart = -zoneWidth / 2;
     const xEnd = zoneWidth / 2;
     const spacing = getLayerSpacing();
+    const bands = safeLevels.map(level => {
+      const y_center = getLayerY(level.index, centerY, spacing);
+      const bandHeight = spacing;
+      const y_start = y_center - bandHeight / 2; // Center the band on the layer line
 
-    // 4. Visual Hierarchy: Background Bands
-    const getEvaluationColor = (id) => {
-      const isDark = props.isDarkMode;
-      if (id === 'hoe' || id === 'hoe_req') return isDark ? 'rgba(244, 67, 54, 0.15)' : 'rgba(138,107,46,0.08)';
-      if (id === 'quality' || id === 'quality_req') return isDark ? 'rgba(46, 125, 50, 0.15)' : 'rgba(106,76,99,0.08)';
-      if (id === 'feature' || id === 'feature_req') return isDark ? 'rgba(156, 39, 176, 0.15)' : 'rgba(62,92,118,0.08)';
-      if (id === 'nshc') return isDark ? 'rgba(255, 193, 7, 0.15)' : 'rgba(85,107,47,0.08)';
-      return safeGetColor(id);
-    };
+      // Extend HOE layers infinitely outwards without overlapping inner layers
+      let y = y_start;
+      let height = bandHeight;
+      const EXTENSION = 50000; // Effectively infinite
 
-    const getColor = (id) => props.mode === 'evaluation' ? getEvaluationColor(id) : safeGetColor(id);
+      if (level.id === 'hoe') {
+        y = y_start - EXTENSION; // Grow upwards from the top edge
+        height = bandHeight + EXTENSION;
+      } else if (level.id === 'hoe_req') {
+        height = bandHeight + EXTENSION; // Grow downwards from the bottom edge
+      }
 
-    const bands = [
-      { id: 'hoe', y: -20000, height: (centerY - spacing) - (-20000), color: getColor('hoe') },
-      { id: 'quality', y: centerY - spacing, height: spacing, color: getColor('quality') },
-      { id: 'feature', y: centerY, height: spacing, color: getColor('feature') },
-      { id: 'nshc', y: centerY + spacing, height: spacing, color: getColor('nshc') },
-      { id: 'feature_req', y: centerY + 2 * spacing, height: spacing, color: getColor('feature_req') },
-      { id: 'quality_req', y: centerY + 3 * spacing, height: spacing, color: getColor('quality_req') },
-      { id: 'hoe_req', y: centerY + 4 * spacing, height: 1000, color: getColor('hoe_req') }
-    ];
-
+      return { id: level.id, y, height, color: getLayerColor(level.id) };
+    });
     // Optimization: Use D3 join instead of remove/append for better performance
     gridLayer.selectAll(".layer-bg")
       .data(bands.filter(b => b.height > 0), d => d.id)
       .join("rect")
       .attr("class", d => `layer-bg layer-bg-${d.id}`)
       .attr("x", xStart).attr("y", d => d.y).attr("width", zoneWidth).attr("height", d => d.height)
-      .attr("fill", d => d.color)
-      .attr("opacity", d => isLayerVisible(d.id) ? (props.mode === 'evaluation' ? 1 : 0.18) : 0.01)
+      .attr("fill", d => getLayerColor(d.id))
+      .attr("opacity", d => {
+        if (!isLayerVisible(d.id)) return 0.01;
+        if (props.mode === 'evaluation') return 1;
+        return props.isDarkMode ? 0.12 : 0.25;
+      })
       .style("pointer-events", "none")
       .style("transition", "opacity 0.3s ease");
 
-    // Lines relative to center: centerY - 150, centerY, centerY + 150
-    // HOE < -spacing < Quality < 0 < Feature < spacing < NSHC
-    const lines = [
-      { y: centerY - spacing, style: 'dashed' },
-      { y: centerY, style: 'dashed' },
-      { y: centerY + spacing, style: 'solid' }, // NSHC Separator Top
-      { y: centerY + 2 * spacing, style: 'solid' }, // NSHC Separator Bottom (now solid)
-      { y: centerY + 3 * spacing, style: 'dashed' },
-      { y: centerY + 4 * spacing, style: 'dashed' }
-    ];
-
+    const lines = safeLevels.map(level => ({
+      id: level.id,
+      y: getLayerY(level.index, centerY, spacing) - spacing / 2, // FIX: Align lines with band start
+      style: (level.id === 'nshc' || level.id === 'feature_req') ? 'solid' : 'dashed'
+    })).filter(line => line.id !== 'hoe');
     // Filter lines based on progressive disclosure (same logic as buttons)
     const showLayer = {
       nshc: true,
@@ -692,26 +687,16 @@ const updateGraph = () => {
       .join("line")
       .attr("class", "grid-line")
       .attr("x1", xStart).attr("x2", xEnd)
-      .attr("y1", d => d.y).attr("y2", d => d.y)
+      .attr("y1", d => d.y).attr("y2", d => d.y) // Use y from data
       .attr("stroke", "#999").attr("stroke-width", 3)
       .attr("stroke-dasharray", d => d.style === 'dashed' ? "5,5" : null)
       .attr("opacity", 0.8);
 
     // Calculate fixed X positions for sticky labels (Layer Names)
     const transform = d3.zoomTransform(svg.node());
-    const fixedLayerX = (50 - transform.x) / transform.k; // 50px margin from left
+    const fixedLayerX = (50 - transform.x) / transform.k;
 
-    // Labels (Positioned left, but within zoom range)
-    const labels = [
-      { text: "Human-Oriented Elements", y: centerY - 1.5 * spacing },
-      { text: "Quality", y: centerY - 0.5 * spacing },
-      { text: "Feature", y: centerY + 0.5 * spacing },
-      { text: "NSHC", y: centerY + 1.5 * spacing },
-      { text: "Feature", y: centerY + 2.5 * spacing },
-      { text: "Quality", y: centerY + 3.5 * spacing },
-      { text: "Human-Oriented Elements", y: centerY + 4.5 * spacing }
-    ];
-
+    const labels = safeLevels.map(level => ({ text: level.label, y: getLayerY(level.index, centerY, spacing) }));
     gridLayer.selectAll(".layer-label")
       .data(labels, (d, i) => i)
       .join("text")
@@ -722,13 +707,13 @@ const updateGraph = () => {
       .style("pointer-events", "none").text(d => d.text);
 
     // Group Labels (Vertical)
-    const drawGroupLabel = (text, groupKey, yPos) => {
+    const drawGroupLabel = (text, groupKey, yPos, yOffset = 0) => {
       const isCollapsed = collapsedGroups.value[groupKey];
       const labelText = `${isCollapsed ? '[+]' : '[-]'} ${text}`;
 
       const gLabel = gridLayer.append("g")
         .attr("class", `group-label group-label-${groupKey}`) // Added 'group-label' for sticky selection
-        .datum({ y: yPos }) // Bind data for zoom updates
+        .datum({ y: yPos + yOffset }) // Bind data for zoom updates
         .attr("transform", `translate(${fixedLayerX - 25}, ${yPos}) rotate(-90)`)
         .style("cursor", "pointer")
         .on("click", () => toggleGroup(groupKey));
@@ -747,8 +732,8 @@ const updateGraph = () => {
     // Simple redraw for group labels as they are interactive and few
     gridLayer.selectAll(".group-label-appreciated, .group-label-requested").remove();
     if (props.mode !== 'evaluation' || props.analyzingView === 'zones') {
-      drawGroupLabel("Appreciated Worth", "appreciated", centerY - 0.5 * spacing);
-      drawGroupLabel("Requested Worth", "requested", centerY + 3.5 * spacing);
+      drawGroupLabel("Appreciated Worth", "appreciated", getLayerY(2, centerY, spacing), spacing / 2);
+      drawGroupLabel("Requested Worth", "requested", getLayerY(-2, centerY, spacing), spacing / 2);
     }
 
   } else if (props.mode === 'evaluation' && props.analyzingView === 'axis') {
@@ -761,7 +746,7 @@ const updateGraph = () => {
     // Axis through NSHC (Pivot)
     gridLayer.append("line")
       .attr("class", "axis-element")
-      .attr("x1", -4000).attr("x2", 4000)
+      .attr("x1", -40000).attr("x2", 40000)
       .attr("y1", centerY + 1.5 * spacing).attr("y2", centerY + 1.5 * spacing)
       .attr("stroke", "#42b983").attr("stroke-width", 2).attr("stroke-dasharray", "10,5").attr("opacity", 0.5);
 
@@ -960,7 +945,7 @@ const updateGraph = () => {
     .attr("rx", 6)
     .attr("ry", 6)
     .attr("stroke-width", 3)
-    .attr("stroke", (d) => d.customColor || safeGetColor(d.type))
+    .attr("stroke", (d) => d.customColor || getLayerStrokeColor(d.type))
     .attr("stroke-opacity", (d) => !connectedNodeIds.has(d.id) ? 0.6 : 1)
     // Methodological Visualization (A, B, C, D)
     .attr("stroke-dasharray", (d) => {
@@ -979,7 +964,7 @@ const updateGraph = () => {
         if (status?.level === 'B') return "#5CA4D6"; // Blue (Plausible)
         if (status?.level === 'C') return "#dc3545"; // Red (Broken)
         if (status?.level === 'D') return "#ffc107"; // Orange (Semantic)
-        return safeGetColor(d.type);
+        return getLayerStrokeColor(d.type);
       })
       .attr("stroke-width", (d) => nodeStatus.get(d.id)?.level === 'A' ? 4 : 2)
       .style("filter", (d) => nodeStatus.get(d.id)?.level === 'A' ? "drop-shadow(0 0 8px rgba(40, 167, 69, 0.4))" : "none")
@@ -988,7 +973,7 @@ const updateGraph = () => {
 
   // Selection Frame (Multi-Select)
   nodeSelection.select("rect")
-    .attr("stroke", (d) => selectedNodeIds.value.has(d.id) ? "#2c3e50" : (d.customColor || safeGetColor(d.type)))
+    .attr("stroke", (d) => selectedNodeIds.value.has(d.id) ? "#2c3e50" : (d.customColor || getLayerStrokeColor(d.type)))
     .style("filter", (d) => selectedNodeIds.value.has(d.id) ? "drop-shadow(0 0 6px rgba(66, 185, 131, 0.6))" : null);
 
   // Apply filter class to group (so text/icons also fade)
@@ -1007,7 +992,7 @@ const updateGraph = () => {
   nodeSelection.select(".node-label-div").html((d) => d.name);
 
   nodeSelection.select(".idea-badge")
-    .style("display", (d) => !connectedNodeIds.has(d.id) && props.mode !== 'analyzing' ? "block" : "none")
+    .style("display", (d) => !connectedNodeIds.has(d.id) ? "block" : "none")
     .attr("transform", (d) => `translate(${-safeGetNodeWidth(d) / 2}, ${-safeGetNodeHeight(d) / 2 - 20})`);
 
   nodeSelection.select(".connection-handle")
@@ -1263,10 +1248,13 @@ onMounted(() => {
   containerWidth = width;
   containerHeight = height;
 
+  const spacing = getLayerSpacing();
+  const centerY = height / 2;
+
   svg = d3.select(mapContainer.value)
     .append("svg")
-    .attr("width", width)
-    .attr("height", height)
+    .attr("width", "100%")
+    .attr("height", "100%")
     .on("click", () => {
       emit("node-selected", null); // Deselect
 
@@ -1323,7 +1311,7 @@ onMounted(() => {
   const defs = svg.append("defs");
 
   // Generate markers for all supported colors + default
-  const allColors = [...linkColors, '#999', '#999999'];
+  const allColors = [...new Set([...Object.values(layerColors), ...linkPalette, '#999', '#999999'])];
   allColors.forEach(color => {
     const safeId = color.replace('#', '');
     defs.append("marker")
@@ -1348,7 +1336,7 @@ onMounted(() => {
 
   // Spotlight Layer (SVG based for multiple holes support)
   // Appended after graph content to sit on top
-  svg.append("path").attr("class", "spotlight-path").attr("fill-rule", "evenodd");
+  spotlightOverlay = svg.append("path").attr("class", "spotlight-path").attr("fill-rule", "evenodd");
 
   // Temporary line for connections
   tempLine = interactionLayer.append("line")
@@ -1361,20 +1349,23 @@ onMounted(() => {
   // This allows nodes to stack vertically (different rows) without pushing each other
   const rowSeparationForce = (alpha) => {
     const nodes = simulation.nodes();
-    const rows = new Map();
-
-    // Group nodes by their Y position (Row) with a small tolerance
-    nodes.forEach(n => {
-      const rowKey = Math.round((n.fy ?? n.y) / 40) * 40; // Increased tolerance for row grouping
-      if (!rows.has(rowKey)) rows.set(rowKey, []);
-      rows.get(rowKey).push(n);
+    // Performance: Avoid creating new Map/Arrays every tick. Use a simple sort.
+    // Sort by Y first (to group rows), then by X
+    nodes.sort((a, b) => {
+      const rowA = Math.round((a.fy ?? a.y) / 40);
+      const rowB = Math.round((b.fy ?? b.y) / 40);
+      if (rowA !== rowB) return rowA - rowB;
+      return (a.fx ?? a.x) - (b.fx ?? b.x);
     });
+    for (let i = 0; i < nodes.length - 1; i++) {
+      const a = nodes[i];
+      const b = nodes[i + 1];
 
-    rows.forEach(rowNodes => {
-      rowNodes.sort((a, b) => (a.fx ?? a.x) - (b.fx ?? b.x));
-      for (let i = 0; i < rowNodes.length - 1; i++) {
-        const a = rowNodes[i];
-        const b = rowNodes[i + 1];
+      // Only check collision if they are in the same visual row
+      const rowA = Math.round((a.fy ?? a.y) / 40);
+      const rowB = Math.round((b.fy ?? b.y) / 40);
+
+      if (rowA === rowB) {
         const minDist = (safeGetNodeWidth(a) + safeGetNodeWidth(b)) / 2 + 60; // 60px gap for consistency
         const dist = (b.fx ?? b.x) - (a.fx ?? a.x);
         if (dist < minDist) {
@@ -1383,7 +1374,7 @@ onMounted(() => {
           b.vx += push;
         }
       }
-    });
+    }
   };
 
   // Start Simulation
@@ -1499,7 +1490,7 @@ onMounted(() => {
         const spacing = getLayerSpacing();
         const centerY = h / 2;
         if (level) {
-          const layerCenter = centerY + (1.5 - level.index) * spacing;
+          const layerCenter = getLayerY(level.index, centerY, spacing); // FIX: Use correct function
           if (d.type === 'hoe' || d.type === 'hoe_req') {
             // Snap to 2 rows
             if (d.isHoeLockedRow) {
@@ -1537,9 +1528,8 @@ onMounted(() => {
         const h = mapContainer.value?.clientHeight || 800;
         const spacing = getLayerSpacing();
         const level = safeLevels.find(l => l.id === d.type);
-        const centerY = h / 2;
         if (level) {
-          const layerCenter = centerY + (1.5 - level.index) * spacing;
+          const layerCenter = getLayerY(level.index, h / 2, spacing); // FIX: Use correct function
           if (d.type === 'hoe' || d.type === 'hoe_req') {
             // Snap to 2 rows
             if (d.isHoeLockedRow) {
@@ -1583,10 +1573,10 @@ onMounted(() => {
         d.vx = 0;
         d.vy = 0;
 
-        // Persist final position
-        const updates = [{ id: d.id, changes: { fx: d.fx, fy: d.fy, x: d.fx, y: d.fy } }];
+        // Persist final position more efficiently
+        const updates = [{ id: d.id, changes: { fx: d.fx, fy: d.fy } }];
         if (overlappingNode) {
-          updates.push({ id: overlappingNode.id, changes: { fx: d.startX, fy: d.startY, x: d.startX, y: d.startY } });
+          updates.push({ id: overlappingNode.id, changes: { fx: d.startX, fy: d.startY } });
         }
         updateNodesBulk(updates);
       }
@@ -1631,7 +1621,7 @@ onMounted(() => {
       // 4. Constraints Feedback: Highlight valid targets
       // Reset styles first
       svg.selectAll(".node rect")
-        .attr("stroke", (n) => safeGetColor(n.type))
+        .attr("stroke", (n) => getLayerStrokeColor(n.type))
         .attr("stroke-width", 3);
 
       // Fix: Use quadtree to find target
@@ -1664,7 +1654,7 @@ onMounted(() => {
 
       // Reset node styles
       svg.selectAll(".node rect")
-        .attr("stroke", (n) => safeGetColor(n.type))
+        .attr("stroke", (n) => getLayerStrokeColor(n.type))
         .attr("stroke-width", 3);
 
       // Find target
@@ -1680,8 +1670,8 @@ onMounted(() => {
 
   // Initialize Zoom Behavior
   zoomBehavior = d3.zoom()
-    .scaleExtent([0.1, 2])
-    .translateExtent([[-8000, -2000], [8000, 4000]]) // Expanded panning range
+    .scaleExtent([0.4, 2]) // User request to limit zoom
+    .translateExtent([[-30000, -2000], [30000, 3000]]) // Expanded panning range for large screens
     .on("zoom", (event) => {
       g.attr("transform", event.transform);
       currentZoomTransform.value = event.transform; // Update reactive state for spotlight
@@ -1730,12 +1720,19 @@ onMounted(() => {
   // Resize Observer
   resizeObserver = new ResizeObserver(() => {
     if (mapContainer.value && simulation) {
+      const wasEmpty = containerWidth === 0 || containerHeight === 0;
       containerWidth = mapContainer.value.clientWidth;
       containerHeight = mapContainer.value.clientHeight;
-      if (svg) svg.attr("width", containerWidth).attr("height", containerHeight);
+      // SVG width/height is handled by CSS 100%, but we update internal vars
 
       // Update graph to apply new spacing
       updateGraph();
+      if (wasEmpty && containerWidth > 0) {
+        requestAnimationFrame(() => {
+          zoomToFit();
+          if (simulation) simulation.alpha(0.3).restart();
+        });
+      }
 
       // No forces on resize for static layout
       // Just restart to ensure rendering
@@ -1745,19 +1742,6 @@ onMounted(() => {
   resizeObserver.observe(mapContainer.value);
 
   // Initial Draw
-  updateGraph();
-
-  // Check if we need to initialize default nodes
-  const data = getGraphData();
-  if (data.nodes.length < 7) {
-    initializeDefaultGraph();
-  } else {
-    // Data exists (e.g. from autosave), ensure layout is correct
-    setTimeout(() => {
-      updateGraph();
-      zoomToFit();
-    }, 250);
-  }
 });
 
 const updateMinimap = () => {
@@ -1925,9 +1909,20 @@ const smartLayout = () => {
   const h = mapContainer.value?.clientHeight || 800;
   const centerY = h / 2;
   const spacing = getLayerSpacing();
-  const { links, nodes } = getRawData();
+  const { links, nodes: simNodes } = getRawData();
 
-  // 1. Reset velocities and positions for deterministic result
+  // Pre-calculate which HOE nodes are children of other HOE nodes (Optimized)
+  const nodeMap = new Map(simNodes.map(n => [n.id, n]));
+  const hoeChildIds = new Set();
+  links.forEach(l => {
+    const s = nodeMap.get(l.source.id || l.source);
+    const t = nodeMap.get(l.target.id || l.target);
+    if (s && t && (s.type === 'hoe' || s.type === 'hoe_req') && (t.type === 'hoe' || t.type === 'hoe_req')) {
+      hoeChildIds.add(t.id);
+    }
+  });
+
+  // 1. Reset velocities and positions for deterministic result, and apply Y constraints
   simulation.nodes().forEach((n, i) => {
     n.fx = null; // Unlock X to allow optimization
     n.vx = 0;
@@ -1936,26 +1931,15 @@ const smartLayout = () => {
     n.x = (i % 2 === 0 ? 1 : -1) * (i * 50); // Wider initial spread
     n.y = 0; // Reset Y to neutral
     n.fy = null;
-  });
 
-  // 2. Identify HOE nodes and set constraints
-  const hoeNodes = [];
-  simulation.nodes().forEach(n => {
     const level = safeLevels.find(l => l.id === n.type);
-    if (level) {
-      const layerCenter = centerY + (1.5 - level.index) * spacing;
+    if (level) { // Use new helper
+      const layerCenter = getLayerY(level.index, centerY, spacing); // FIX: Use correct function
       if (n.type === 'hoe' || n.type === 'hoe_req') {
         const row1 = layerCenter;
         const row2 = n.type === 'hoe' ? layerCenter - 80 : layerCenter + 80;
-
-        // Determine preference based on connectivity (Root vs Child)
-        const isChild = links.some(l => {
-          const s = l.source.id || l.source;
-          const t = l.target.id || l.target;
-          const srcNode = nodes.find(node => node.id === s);
-          return t === n.id && srcNode && (srcNode.type === 'hoe' || srcNode.type === 'hoe_req');
-        });
-
+        // Determine preference based on pre-calculated set
+        const isChild = hoeChildIds.has(n.id);
         // STRICTLY enforce row based on logic, ignoring current position
         n.fy = isChild ? row2 : row1;
         n.y = n.fy; // Set current y to target immediately
@@ -1966,6 +1950,9 @@ const smartLayout = () => {
       }
     }
   });
+
+  // 2. Identify HOE nodes and set constraints
+  // (This logic was moved into the loop above for better performance)
 
   // Custom Force to prevent horizontal overlap on the same row (Rectangular Collision)
   const rectCollide = (alpha) => {
@@ -2007,8 +1994,8 @@ const smartLayout = () => {
 
   // 3. Run Layout Simulation
   const layoutSim = d3.forceSimulation(simulation.nodes())
-    .force("link", d3.forceLink(links).id(d => d.id).strength(2).distance(40)) // Strong links to keep structure
-    .force("charge", d3.forceManyBody().strength(-4000).distanceMax(2000)) // Stronger repulsion
+    .force("link", d3.forceLink(links).id(d => d.id).strength(1.2).distance(100)) // Compact links
+    .force("charge", d3.forceManyBody().strength(-1200).distanceMax(800)) // Moderate repulsion for compactness
     .force("x", d3.forceX(0).strength(0.05)) // Weak centering to allow rectangular shape
     // Note: forceY is not needed as fy is set for all nodes, effectively pinning Y
     .force("rectCollide", rectCollide) // Custom rectangular collision
@@ -2031,9 +2018,9 @@ const smartLayout = () => {
   updateNodesBulk(updates);
 
   graphUpdateTrigger.value++;
-  nextTick(() => {
+  setTimeout(() => {
     zoomToFit();
-  });
+  }, 50);
 };
 
 const loadGraphDataHandler = (data) => {
@@ -2061,11 +2048,11 @@ const loadGraphDataHandler = (data) => {
     // 5. Update and finish
     updateGraph();
 
-    // Give D3 a moment to settle layout before hiding spinner and zooming
-    setTimeout(() => {
+    // Force layout update next tick
+    nextTick(() => {
       zoomToFit();
       isInitializing.value = false;
-    }, 400); // Visible delay for feedback
+    });
   }, 50);
 };
 
@@ -2076,7 +2063,9 @@ const zoomToFit = () => {
 
   const width = mapContainer.value.clientWidth;
   const height = mapContainer.value.clientHeight;
-  const padding = 100;
+  const padding = 100; // User request for more buffer
+
+  if (width === 0 || height === 0) return;
 
   const x0 = d3.min(nodes, d => d.x);
   const x1 = d3.max(nodes, d => d.x);
@@ -2156,7 +2145,7 @@ const clearSelection = () => {
     // FIX: Clear inline styles for multi-select glow to remove persistent highlight
     svg.selectAll(".node rect")
       .style("filter", null)
-      .attr("stroke", d => d.customColor || safeGetColor(d.type));
+      .attr("stroke", d => d.customColor || getLayerStrokeColor(d.type));
   }
 };
 
@@ -2181,7 +2170,7 @@ const initializeDefaultGraph = () => {
 
   const nodeTemplates = [
     { id: 'nshc', name: 'Start: New NSHC' },
-    { id: 'feature', name: 'Next: New Feature' },
+    { id: 'feature', name: 'Next: New Feature (AW)' },
     { id: 'quality', name: 'Next: New Quality' },
     { id: 'hoe', name: 'Goal: New HOE' },
     { id: 'feature_req', name: 'Next: New Feature' },
@@ -2255,7 +2244,6 @@ defineExpose({
   align-items: center;
   justify-content: center;
   z-index: 2000;
-  backdrop-filter: blur(4px);
   transition: opacity 0.3s ease;
 }
 
@@ -2278,22 +2266,6 @@ defineExpose({
 
 .worth-map-container.dark-mode {
   background-color: #0B0E14;
-}
-
-/* Evaluation Mode Light Mode Fix (Less Bright) */
-.bg-evaluation {
-  background-color: #e0e0e0;
-}
-
-.vignette-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  background: radial-gradient(circle, transparent 60%, rgba(11, 14, 20, 0.8) 100%);
-  z-index: 5;
 }
 
 :deep(.node rect) {
@@ -2678,8 +2650,7 @@ defineExpose({
 /* Dark Mode Overrides */
 /* Node Styling: Dark background, colored border */
 .dark-mode :deep(.node rect) {
-  fill: rgba(25, 25, 25, 0.8) !important;
-  /* Glassmorphism background */
+  fill: #1e1e1e !important;
   stroke-width: 2px;
   /* Performance: Removed generic heavy drop-shadow */
   /* filter: drop-shadow(0 0 10px rgba(0, 0, 0, 0.5)); */
@@ -2752,34 +2723,6 @@ defineExpose({
   /* Primary Text */
 }
 
-/* Zone Backgrounds (Subtle) */
-.dark-mode :deep(.layer-bg-hoe),
-.dark-mode :deep(.layer-bg-hoe_req) {
-  fill: rgba(244, 67, 54, 0.1) !important;
-  /* Red */
-  opacity: 1 !important;
-}
-
-.dark-mode :deep(.layer-bg-quality),
-.dark-mode :deep(.layer-bg-quality_req) {
-  fill: rgba(46, 125, 50, 0.1) !important;
-  /* Green */
-  opacity: 1 !important;
-}
-
-.dark-mode :deep(.layer-bg-feature),
-.dark-mode :deep(.layer-bg-feature_req) {
-  fill: rgba(156, 39, 176, 0.1) !important;
-  /* Purple */
-  opacity: 1 !important;
-}
-
-.dark-mode :deep(.layer-bg-nshc) {
-  fill: rgba(255, 193, 7, 0.1) !important;
-  /* Gold */
-  opacity: 1 !important;
-}
-
 .dark-mode :deep(.grid-layer line) {
   stroke: #666;
   /* Separator color */
@@ -2803,7 +2746,7 @@ defineExpose({
 }
 
 .dark-mode :deep(.layer-label) {
-  opacity: 0.3;
+  opacity: 1;
   transition: opacity 0.3s;
 }
 

@@ -1,5 +1,5 @@
 <template>
-  <aside class="sidebar" :class="{ open: isOpen }">
+  <aside class="sidebar" :class="{ open: isOpen, 'dark-mode': isDarkMode }">
     <div class="sidebar-header">
       <h3>Details & Metadata</h3>
     </div>
@@ -97,7 +97,8 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
-  graphStats: Object
+  graphStats: Object,
+  isDarkMode: Boolean
 });
 
 import { computed, nextTick, ref, watch } from 'vue';
@@ -166,10 +167,6 @@ const aggregatedEvidence = computed(() => {
   display: flex;
   flex-direction: column;
   font-family: 'Segoe UI', sans-serif;
-}
-
-.sidebar.open {
-  width: 400px;
 }
 
 .sidebar-header {
@@ -370,69 +367,77 @@ textarea:focus {
 }
 
 /* Dark Mode Support */
-:global(.dark-mode) .sidebar {
-  background: #161B22 !important;
+.sidebar.dark-mode {
+  background-color: #161B22 !important;
   border-left-color: #30363D !important;
   color: #E6E8EB !important;
 }
 
-:global(.dark-mode) .sidebar-header {
+.sidebar.dark-mode .sidebar-header {
   background: #161B22 !important;
   border-bottom-color: #30363D !important;
 }
 
-:global(.dark-mode) .sidebar-content {
+.sidebar.dark-mode .sidebar-content {
   color: #E6E8EB;
 }
 
-:global(.dark-mode) textarea {
+.sidebar.dark-mode textarea {
   background-color: #0D1117;
   /* Darker than sidebar */
   border-color: #30363D;
   color: #E6E8EB;
 }
 
-:global(.dark-mode) .menu-section-label {
+.sidebar.dark-mode .metric-value-box {
+  color: #E6E8EB !important;
+  background: #21262D !important;
+  border-color: #30363D !important;
+}
+
+.sidebar.dark-mode .menu-section-label {
   color: #9DA3AE;
 }
 
-:global(.dark-mode) .meta-hint {
+.sidebar.dark-mode .meta-hint {
   color: #9DA3AE;
 }
 
-:global(.dark-mode) .meta-id {
+.sidebar.dark-mode .meta-id {
   color: #9DA3AE;
 }
 
-:global(.dark-mode) .warning-box.error {
-  background-color: rgba(229, 115, 115, 0.2);
-  border-color: #E57373;
-  color: #E57373;
+.sidebar.dark-mode .warning-box.warning {
+  background-color: rgba(255, 243, 205, 0.1);
+  color: #ffeeba;
+  border-color: #ffeeba;
 }
 
-:global(.dark-mode) .analysis-path-list {
-  background-color: #e0e0e0 !important;
-  /* Force Gray */
-  color: #000 !important;
-  /* Force Black */
-  border-color: #ccc !important;
+.sidebar.dark-mode .analysis-path-list {
+  background-color: #0D1117 !important;
+  color: #E6E8EB !important;
+  border-color: #30363D !important;
 }
 
-:global(.dark-mode) .analysis-path-list.empty {
+.sidebar.dark-mode .analysis-type {
+  color: #9DA3AE;
+}
+
+.sidebar.dark-mode .analysis-path-list.empty {
   color: #35373a;
 }
 
-:global(.dark-mode) .semantic-check-wrapper {
-  background-color: #21262D;
-  border-color: #30363D;
+.sidebar.dark-mode .semantic-check-wrapper {
+  background-color: #21262D !important;
+  border-color: #30363D !important;
 }
 
-:global(.dark-mode) .semantic-check-wrapper {
-  background-color: #2E3138;
-  border-color: #454952;
+.sidebar.dark-mode .semantic-check-wrapper {
+  background-color: #2E3138 !important;
+  border-color: #454952 !important;
 }
 
-:global(.dark-mode) .checkbox-label {
+.sidebar.dark-mode .checkbox-label {
   color: #E6E8EB;
 }
 </style>

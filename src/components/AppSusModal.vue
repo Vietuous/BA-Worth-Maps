@@ -1,5 +1,5 @@
 <template>
-    <div v-if="show" class="modal-backdrop">
+    <div v-if="show" class="modal-backdrop" :class="{ 'dark-mode': isDarkMode }">
         <div class="modal">
             <div class="modal-header">
                 <h2>System Usability Scale (SUS)</h2>
@@ -73,7 +73,8 @@ import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
     show: Boolean,
-    questions: Array
+    questions: Array,
+    isDarkMode: Boolean
 });
 
 const emit = defineEmits(['close', 'submit']);
@@ -368,5 +369,53 @@ button {
     to {
         transform: rotate(360deg);
     }
+}
+
+/* Dark Mode Support */
+.modal-backdrop.dark-mode .modal {
+    background: #161B22;
+    color: #E6E8EB;
+}
+
+.modal-backdrop.dark-mode h2 {
+    color: #E6E8EB;
+}
+
+.modal-backdrop.dark-mode .icon-btn {
+    color: #9DA3AE;
+}
+
+.modal-backdrop.dark-mode .icon-btn:hover {
+    color: #E6E8EB;
+}
+
+.modal-backdrop.dark-mode .scale-legend {
+    background: #0D1117;
+    color: #9DA3AE;
+}
+
+.modal-backdrop.dark-mode .sus-item {
+    border-bottom-color: #30363D;
+}
+
+.modal-backdrop.dark-mode .open-questions,
+.modal-backdrop.dark-mode .optional-questions {
+    border-top-color: #30363D;
+}
+
+.modal-backdrop.dark-mode .open-item textarea {
+    background-color: #0D1117;
+    border-color: #30363D;
+    color: #E6E8EB;
+}
+
+.modal-backdrop.dark-mode .close-btn {
+    background-color: #21262D;
+    color: #E6E8EB;
+}
+
+.modal-backdrop.dark-mode .submit-btn:disabled,
+.modal-backdrop.dark-mode .close-btn:disabled {
+    opacity: 0.6;
 }
 </style>

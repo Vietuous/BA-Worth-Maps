@@ -1,5 +1,5 @@
 <template>
-    <div class="top-ui-shell">
+    <div class="top-ui-shell" :class="{ 'dark-mode': isDarkMode }">
         <!-- 1. Filter Bar Panel -->
         <div class="panel-wrapper" :class="{ collapsed: !isFilterPanelOpen }">
             <div class="toolbar-panel filter-panel">
@@ -13,7 +13,7 @@
                                     @click="$emit('toggle-layer', layer.id)" :title="layer.title">
                                     {{ layer.text }}
                                     <span v-if="layerCounts[layer.id]" class="count-badge">{{ layerCounts[layer.id]
-                                    }}</span>
+                                        }}</span>
                                 </button>
                             </div>
                         </div>
@@ -306,7 +306,7 @@ const layerCounts = computed(() => {
 .filter-pill {
     padding: 4px 12px;
     font-size: 0.75rem;
-    border: 1px solid transparent;
+    border: 1px solid #d0d7de;
     background: #f0f2f5;
     border-radius: 12px;
     cursor: pointer;
@@ -316,17 +316,20 @@ const layerCounts = computed(() => {
     align-items: center;
     gap: 6px;
     text-align: center;
-    transition: all 0.2s ease;
     font-weight: 500;
+    opacity: 0.6;
+    transition: all 0.2s ease;
 }
 
 .filter-pill:hover {
     filter: brightness(0.95);
+    opacity: 1;
 }
 
 .filter-pill.active {
     color: white;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    opacity: 1;
 }
 
 /* Layer Colors */
@@ -371,76 +374,98 @@ const layerCounts = computed(() => {
 }
 
 /* Dark Mode Support */
-:global(.dark-mode) .toolbar-panel {
+.top-ui-shell.dark-mode .toolbar-panel {
     background-color: #161B22 !important;
     border-color: #30363D !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
-:global(.dark-mode) .top-ui-shell,
-:global(.dark-mode) .panel-wrapper {
-    background: transparent !important;
-}
-
-:global(.dark-mode) .drawer-toggle-btn {
+.top-ui-shell.dark-mode .drawer-toggle-btn {
     background-color: #161B22;
     border-color: #30363D;
     border-top: none;
     color: #E6E8EB;
 }
 
-:global(.dark-mode) .action-btn {
-    background-color: #21262D;
-    /* Dark Surface */
+.top-ui-shell.dark-mode .action-btn {
+    background-color: transparent;
     border-color: #30363D;
     color: #E6E8EB;
 }
 
-:global(.dark-mode) .action-btn:hover {
+.top-ui-shell.dark-mode .action-btn:hover {
     background-color: #30363D;
 }
 
-:global(.dark-mode) .action-btn.active {
+.top-ui-shell.dark-mode .action-btn.active {
     background-color: #42b983;
     border-color: #42b983;
     color: white;
 }
 
-:global(.dark-mode) .toggle-switch {
+.top-ui-shell.dark-mode .toggle-switch {
     background: #444;
 }
 
-:global(.dark-mode) .toggle-switch.active {
+.top-ui-shell.dark-mode .toggle-switch.active {
     background: #42b983;
 }
 
 /* Dark Mode for Filter Bar */
-:global(.dark-mode) .filter-pill {
-    background: transparent;
-    /* Ghost Pill */
-    color: #9DA3AE;
-    border-color: #30363D;
+.top-ui-shell.dark-mode .filter-pill {
+    background-color: #21262D;
+    color: #E6E8EB !important;
+    border-color: #30363D !important;
+    opacity: 0.8;
+    /* Remove transparency causing haze */
 }
 
-:global(.dark-mode) .filter-pill:hover {
-    background-color: #444;
+.top-ui-shell.dark-mode .filter-pill:hover {
+    opacity: 1;
+    background-color: #30363D;
 }
 
-:global(.dark-mode) .filter-pill.active {
-    /* Active state colors are handled by specific classes above, but we ensure text is white */
+/* Ensure colors pop in Dark Mode */
+.top-ui-shell.dark-mode .filter-pill.active {
+    opacity: 1 !important;
     color: white;
 }
 
-:global(.dark-mode) .filter-header {
+.top-ui-shell.dark-mode .filter-pill.nshc.active {
+    background-color: #FFC107;
+    color: black;
+    /* Contrast for yellow */
+}
+
+.top-ui-shell.dark-mode .filter-pill.feature.active,
+.top-ui-shell.dark-mode .filter-pill.feature_req.active {
+    background-color: #9C27B0;
+    color: white;
+}
+
+.top-ui-shell.dark-mode .filter-pill.quality.active,
+.top-ui-shell.dark-mode .filter-pill.quality_req.active {
+    background-color: #2E7D32;
+    color: white;
+}
+
+.top-ui-shell.dark-mode .filter-pill.hoe.active,
+.top-ui-shell.dark-mode .filter-pill.hoe_req.active {
+    background-color: #F44336;
+    color: white;
+}
+
+.top-ui-shell.dark-mode .filter-header {
     color: #9DA3AE;
     /* Lighter gray for dark mode readability */
 }
 
-:global(.dark-mode) .toggle-switch.light-mode-switch {
+.top-ui-shell.dark-mode .toggle-switch.light-mode-switch {
     background: #555;
 }
 
 /* Dark Mode for Right Toolbar Tab */
-:global(.dark-mode) .actions-panel+.drawer-toggle-btn {
+.top-ui-shell.dark-mode .actions-panel+.drawer-toggle-btn {
     background-color: #161B22;
     border-color: #30363D;
 }
@@ -448,49 +473,63 @@ const layerCounts = computed(() => {
 /* Responsive Adjustments for smaller laptop screens */
 @media (max-width: 1600px) {
     .toolbar-panel {
-        padding: 8px 12px !important;
+        padding: 8px 12px;
         gap: 8px;
-        max-width: 90vw !important;
     }
 
     .action-btn,
     .filter-pill {
-        padding: 4px 8px !important;
-        font-size: 0.8rem !important;
-        line-height: 1.2 !important;
-        min-height: 28px !important;
+        padding: 4px 8px;
+        font-size: 0.8rem;
+        min-height: 28px;
     }
 }
 
 @media (max-width: 1400px) {
     .toolbar-panel {
-        padding: 6px 10px !important;
-        gap: 6px !important;
-        min-width: auto !important;
+        padding: 6px 10px;
+        gap: 6px;
     }
 
     .action-btn,
     .filter-pill {
-        padding: 3px 8px !important;
-        font-size: 0.75rem !important;
-        min-height: 24px !important;
+        padding: 3px 8px;
+        font-size: 0.75rem;
+        min-height: 24px;
     }
 }
 
 @media (max-width: 1200px) {
     .toolbar-panel {
-        padding: 4px 8px !important;
-        gap: 4px !important;
+        padding: 4px 8px;
+        gap: 4px;
     }
 
     .action-btn,
     .filter-pill {
-        padding: 2px 6px !important;
-        font-size: 0.7rem !important;
+        padding: 2px 6px;
+        font-size: 0.7rem;
     }
 
     .filter-header {
-        font-size: 0.6rem !important;
+        font-size: 0.6rem;
+    }
+}
+
+@media (max-width: 1000px) {
+    .filter-panel {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .filter-column {
+        flex-basis: 45%;
+        /* Two columns */
+        justify-content: center;
+    }
+
+    .separator {
+        display: none;
     }
 }
 </style>

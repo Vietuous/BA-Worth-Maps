@@ -1,5 +1,5 @@
 <template>
-    <header class="toolbar" :class="currentMode">
+    <header class="toolbar" :class="[currentMode, { 'dark-mode': isDarkMode }]">
         <div class="brand-container">
             <div class="brand">Worth Mapper</div>
         </div>
@@ -60,7 +60,8 @@ defineProps({
     searchQuery: String,
     canUndo: Boolean,
     canRedo: Boolean,
-    showTutorial: Boolean
+    showTutorial: Boolean,
+    isDarkMode: Boolean
 });
 
 const emit = defineEmits([
@@ -76,7 +77,6 @@ const emit = defineEmits([
     "reset",
     "zoom",
     "zoom-to-fit",
-    "toggle-tasks",
     "toggle-sus",
     "toggle-tutorial"
 ]);
@@ -263,56 +263,56 @@ button:disabled {
 }
 
 /* Dark Mode Support */
-:global(.dark-mode) .toolbar {
-    background: #23252B !important;
-    border-bottom-color: #555 !important;
+.toolbar.dark-mode {
+    background-color: #161B22 !important;
+    border-bottom-color: #30363D !important;
     color: #E6E8EB !important;
 }
 
-:global(.dark-mode) button {
-    background-color: #2E3138;
-    border-color: #555;
+.toolbar.dark-mode button {
+    background-color: #21262D;
+    border-color: #30363D;
     color: #E6E8EB;
 }
 
-:global(.dark-mode) button:hover {
+.toolbar.dark-mode button:hover {
     background-color: #444;
 }
 
-:global(.dark-mode) button.active {
+.toolbar.dark-mode button.active {
     background-color: #2da44e;
     border-color: #2da44e;
     color: white;
 }
 
-:global(.dark-mode) .dropdown-content {
-    background: #23252B !important;
-    border-color: #555;
+.toolbar.dark-mode .dropdown-content {
+    background: #161B22 !important;
+    border-color: #30363D;
     color: #E6E8EB;
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5);
 }
 
-:global(.dark-mode) .dropdown-content button {
+.toolbar.dark-mode .dropdown-content button {
     background-color: transparent;
     border: none;
     color: #E6E8EB;
 }
 
-:global(.dark-mode) .dropdown-content button:hover {
+.toolbar.dark-mode .dropdown-content button:hover {
     background-color: #3E4148;
 }
 
-:global(.dark-mode) .dropdown-content hr {
-    border-top-color: #555;
+.toolbar.dark-mode .dropdown-content hr {
+    border-top-color: #30363D;
 }
 
-:global(.dark-mode) .menu-section-label {
+.toolbar.dark-mode .menu-section-label {
     color: #9DA3AE;
 }
 
-:global(.dark-mode) input[type="text"] {
+.toolbar.dark-mode input[type="text"] {
     background-color: #181A1F;
-    border-color: #555;
+    border-color: #30363D !important;
     color: #E6E8EB;
 }
 </style>

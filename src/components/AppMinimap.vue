@@ -1,5 +1,5 @@
 <template>
-    <div class="minimap-wrapper" v-show="visible">
+    <div class="minimap-wrapper" v-show="visible" :class="{ 'dark-mode': isDarkMode }">
         <div class="minimap" v-show="!collapsed" @click="handleClick" ref="minimapContainer">
             <svg ref="svgRef" width="100%" height="100%"></svg>
         </div>
@@ -13,7 +13,8 @@ import { ref } from "vue";
 import { safeGetColor } from "./useStyling";
 
 const props = defineProps({
-    visible: Boolean
+    visible: Boolean,
+    isDarkMode: Boolean
 });
 
 const emit = defineEmits(['minimap-click']);
@@ -160,18 +161,18 @@ defineExpose({ update });
 }
 
 /* Dark Mode Support */
-:global(.dark-mode) .minimap {
-    background: rgba(35, 37, 43, 0.95) !important;
-    border-color: #555 !important;
+.minimap-wrapper.dark-mode .minimap {
+    background-color: #161B22 !important;
+    border-color: #30363D !important;
 }
 
-:global(.dark-mode) .minimap-toggle {
-    background: #23252B;
-    border-color: #555;
+.minimap-wrapper.dark-mode .minimap-toggle {
+    background: #161B22 !important;
+    border-color: #30363D !important;
     color: #E6E8EB;
 }
 
-:global(.dark-mode) .minimap-toggle:hover {
+.minimap-wrapper.dark-mode .minimap-toggle:hover {
     background: #444;
 }
 </style>

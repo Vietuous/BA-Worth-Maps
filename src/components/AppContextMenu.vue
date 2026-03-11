@@ -1,7 +1,7 @@
 <!-- c:\Users\Destiny\worth-map-tool\src\components\AppContextMenu.vue -->
 <template>
     <Teleport to="body">
-        <div v-if="visible" class="context-menu" :style="style" @click.stop>
+        <div v-if="visible" class="context-menu" :class="{ 'dark-mode': isDarkMode }" :style="style" @click.stop>
             <div v-if="view === 'main'">
                 <div class="menu-header" v-if="item">
                     <span class="menu-title">{{ type === 'node' ? item.name : 'Connection' }}</span>
@@ -54,7 +54,8 @@ const props = defineProps({
     y: Number,
     item: Object,
     type: String,
-    view: String
+    view: String,
+    isDarkMode: Boolean
 });
 
 const emit = defineEmits(['update:view', 'action']);
@@ -183,7 +184,7 @@ hr {
 }
 
 /* Force Dark Mode if parent has it, or handle via global class */
-:global(.dark-mode) .context-menu {
+.context-menu.dark-mode {
     background: #23252B;
     border: 1px solid #444;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
@@ -191,27 +192,27 @@ hr {
 }
 
 /* Dark Mode */
-:global(.dark-mode) .context-menu {
+.context-menu.dark-mode {
     background: #23252B;
     border-color: #444;
     color: #E6E8EB;
 }
 
-:global(.dark-mode) .menu-header {
+.context-menu.dark-mode .menu-header {
     background: #2E3138;
     border-bottom-color: #444;
     color: #E6E8EB;
 }
 
-:global(.dark-mode) button {
+.context-menu.dark-mode button {
     color: #E6E8EB;
 }
 
-:global(.dark-mode) button:hover {
+.context-menu.dark-mode button:hover {
     background: #3E4148;
 }
 
-:global(.dark-mode) hr {
+.context-menu.dark-mode hr {
     border-top-color: #444;
 }
 </style>

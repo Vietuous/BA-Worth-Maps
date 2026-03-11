@@ -3,7 +3,7 @@
     <!-- 1. Top Toolbar -->
     <AppTopbar :current-mode="currentMode" :can-evaluate="canEvaluate" :is-menu-open="isMenuOpen"
       v-model:search-query="searchQuery" :can-undo="canUndo" :can-redo="canRedo" @set-mode="setMode"
-      @execute-search="executeSearch" @toggle-menu="isMenuOpen = !isMenuOpen"
+      @execute-search="executeSearch" @toggle-menu="isMenuOpen = !isMenuOpen" :is-dark-mode="isDarkMode"
       @export-json="handleExportJson(currentScenarioName)" @import-json="handleImportJson" @share="handleShare"
       @undo="undo" @redo="redo" @toggle-tutorial="toggleTutorial" :show-tutorial="showTutorial" @reset="handleReset"
       @zoom="triggerZoom" @zoom-to-fit="handleZoomToFit" @toggle-sus="toggleSus" />
@@ -28,12 +28,13 @@
           @smart-layout="handleSmartLayout" @toggle-dark-mode="toggleDarkMode" />
 
         <!-- Legend is here, ensure z-index is high enough -->
-        <AppLegend :show-legend="showLegend" @update:show-legend="showLegend = $event" :current-mode="currentMode"
-          :is-linking-mode="isLinkingMode" />
+        <AppLegend v-model:show-legend="showLegend" :current-mode="currentMode" :is-linking-mode="isLinkingMode"
+          :is-dark-mode="isDarkMode" />
+
 
         <AppScenarioTabs :scenarios="scenarios" :current-scenario-id="currentScenarioId" @switch="switchScenario"
-          @add="addScenario" @delete="deleteScenario" @rename="renameScenario" @clone="cloneScenario"
-          @update-name="handleScenarioRename" />
+          :is-dark-mode="isDarkMode" @add="addScenario" @delete="deleteScenario" @rename="renameScenario"
+          @clone="cloneScenario" @update-name="handleScenarioRename" />
       </div>
 
       <!-- Resize Handle -->
@@ -42,13 +43,13 @@
       <!-- 1. & 2. Right Sidebar (Interactive) -->
       <AppSidebar :is-open="isSidebarOpen" :selected-node="selectedNode" :current-mode="currentMode"
         :sorted-selected-path="sortedSelectedPath" :graph-stats="graphStats" @update-node="handleNodeUpdate"
-        :style="{ width: sidebarWidth + 'px' }" />
+        :style="sidebarStyle" :is-dark-mode="isDarkMode" />
     </div>
   </div>
 
   <!-- Phase 7: SUS Modal (Optional) -->
   <AppSusModal :show="showSusModal" :questions="extendedSusQuestions" @close="showSusModal = false"
-    @submit="handleSusSubmit" />
+    @submit="handleSusSubmit" :is-dark-mode="isDarkMode" />
 </template>
 
 <script setup>
@@ -79,13 +80,13 @@ const canEvaluate = ref(false);
 const graphStats = shallowRef(null);
 const analyzingView = ref('axis'); // 'axis' or 'zones'
 const isDarkMode = ref(false);
-const showTutorial = ref(false); // Optimization: Tutorial hidden by default
+const showTutorial = ref(false);
+const showSusModal = ref(false);
 
 // Composables
 const { scenarios, currentScenarioId, switchScenario, addScenario, deleteScenario, renameScenario, cloneScenario, updateScenarioName } = useScenarios();
 const { handleExportJson, handleImportJson, handleShare } = useFileIO(worthMapComponent);
 const { undo, redo, canUndo, canRedo, getGraphData, graphData } = useGraphData();
-const showSusModal = ref(false);
 const susSuccessMessage = ref(null);
 
 const currentScenarioName = computed(() => {
@@ -173,10 +174,6 @@ const toggleDarkMode = () => {
   isDarkMode.value = !isDarkMode.value;
 };
 
-watch(isDarkMode, (val) => {
-  document.body.classList.toggle('dark-mode', val);
-});
-
 const toggleTutorial = () => {
   showTutorial.value = !showTutorial.value;
 };
@@ -263,6 +260,11 @@ const extendedSusQuestions = computed(() => {
 const sidebarWidth = ref(400); // Default width
 const isResizing = ref(false);
 
+const sidebarStyle = computed(() => ({
+  width: isSidebarOpen.value ? `${sidebarWidth.value}px` : '0px',
+  transition: isResizing.value ? 'none' : undefined
+}));
+
 const startResize = () => {
   isResizing.value = true;
   document.addEventListener('mousemove', handleResize);
@@ -273,7 +275,7 @@ const startResize = () => {
 
 const handleResize = (e) => {
   const newWidth = window.innerWidth - e.clientX;
-  if (newWidth > 250 && newWidth < 600) sidebarWidth.value = newWidth;
+  if (newWidth > 250 && newWidth < 400) sidebarWidth.value = newWidth;
 };
 
 const stopResize = () => {
@@ -287,13 +289,14 @@ const stopResize = () => {
 
 <style>
 /* Reset & Base Layout */
-body,
-html {
+html,
+body {
   margin: 0;
   padding: 0;
   height: 100%;
   width: 100%;
   overflow: hidden;
+  background-color: #fff;
 }
 
 *,
@@ -307,18 +310,17 @@ html {
   color: #2c3e50;
   display: flex;
   flex-direction: column;
-  position: fixed;
-  top: -3vh;
-  left: -2vw;
-  height: 109vh;
-  width: 103vw;
-  max-width: none;
-  margin: 0;
-  overflow: hidden;
-  /* Prevent body scroll */
+  position: absolute;
+  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
-/* Main Layout Area */
 .main-layout {
   flex: 1;
   display: flex;
@@ -330,6 +332,8 @@ html {
   flex: 1;
   position: relative;
   overflow: hidden;
+  min-width: 0;
+  /* Fix: Allow canvas wrapper to shrink properly in flex layout */
   /* Background is controlled in WorthMap.vue */
 }
 
@@ -352,207 +356,22 @@ html {
   white-space: pre-wrap;
 }
 
-/* Dark Mode Styles */
-.dark-mode {
-  background-color: #0B0E14;
-  /* Deep Navy-Blue-Gray */
-  /* Canvas Background */
-  color: #E6EDF3;
-  /* Off-White */
-  /* Text Primary */
-}
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+  .toolbar {
+    height: auto;
+    flex-wrap: wrap;
+    padding: 10px;
+  }
 
-.dark-mode button {
-  background-color: #161B22;
-  border-color: #30363D;
-  color: #E6E8EB;
-}
+  .center-controls {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
 
-.dark-mode button:hover {
-  background-color: #444;
-}
-
-.dark-mode button.active {
-  background-color: #2da44e;
-  border-color: #2da44e;
-  color: white;
-}
-
-
-/* Global Dark Mode Styles for Components not in context (e.g. ScenarioTabs) */
-.dark-mode .scenario-tabs {
-  background-color: #0D1117 !important;
-  border-top-color: #30363D !important;
-}
-
-.dark-mode .tab {
-  background-color: #161B22;
-  border-color: #30363D;
-  color: #9DA3AE;
-}
-
-.dark-mode .tab.active {
-  background-color: #21262D;
-  color: #E6E8EB;
-  border-top-color: #42b983;
-}
-
-/* Global Dark Mode Overrides for Child Components */
-/* Toolbar */
-.dark-mode .toolbar {
-  background-color: #161B22 !important;
-  border-bottom-color: #30363D !important;
-  color: #E6E8EB !important;
-}
-
-.dark-mode .toolbar button {
-  background-color: #21262D !important;
-  border-color: #30363D !important;
-  color: #E6E8EB !important;
-}
-
-.dark-mode .toolbar button:hover {
-  background-color: #444 !important;
-}
-
-.dark-mode .toolbar button.active {
-  background-color: #42b983 !important;
-  color: white !important;
-  border-color: #3aa876 !important;
-}
-
-.dark-mode .toolbar input[type="text"] {
-  background-color: #0D1117 !important;
-  border-color: #30363D !important;
-  color: #E6E8EB !important;
-}
-
-/* Sidebar */
-.dark-mode .sidebar {
-  background-color: #161B22 !important;
-  border-left-color: #30363D !important;
-  color: #E6E8EB !important;
-}
-
-.dark-mode .sidebar-header {
-  background-color: #23252B !important;
-  border-bottom-color: #3e3e42 !important;
-}
-
-.dark-mode .sidebar-content {
-  color: #E6E8EB !important;
-}
-
-.dark-mode .sidebar textarea {
-  background-color: #181A1F !important;
-  border-color: #3e3e42 !important;
-  color: #E6E8EB !important;
-}
-
-/* Legend */
-.dark-mode .legend {
-  background-color: rgba(35, 37, 43, 0.95) !important;
-  border-color: #3e3e42 !important;
-  color: #E6E8EB !important;
-}
-
-.dark-mode .legend-toggle-btn {
-  background-color: #23252B !important;
-  border-color: #3e3e42 !important;
-  color: #E6E8EB !important;
-}
-
-/* Minimap */
-.dark-mode .minimap {
-  background-color: rgba(35, 37, 43, 0.95) !important;
-  border-color: #3e3e42 !important;
-}
-
-.dark-mode .minimap-toggle {
-  background-color: #23252B !important;
-  border-color: #3e3e42 !important;
-  color: #E6E8EB !important;
-}
-
-/* Context Menu & Dropdowns */
-.dark-mode .context-menu,
-.dark-mode .dropdown-content {
-  background-color: #23252B !important;
-  border-color: #3e3e42 !important;
-  color: #E6E8EB !important;
-}
-
-.dark-mode .menu-header {
-  background-color: #2E3138 !important;
-  border-bottom-color: #3e3e42 !important;
-}
-
-/* Force white text for all context menus in dark mode */
-.dark-mode .context-menu button {
-  color: #E6E8EB !important;
-}
-
-/* Hide delete button in tabs to prevent accidental deletion - Global Override */
-:global(.scenario-tabs .delete-btn),
-:global(.scenario-tabs button.delete),
-:global(.scenario-tabs .close-tab) {
-  display: none !important;
-}
-
-/* AppCanvasToolBars Dark Mode Overrides (Explicit Global) */
-.dark-mode .toolbar-panel {
-  background-color: #161B22 !important;
-  border-color: #30363D !important;
-}
-
-.dark-mode .action-btn {
-  background-color: #21262D;
-  border-color: #30363D;
-  color: #E6E8EB;
-}
-
-.dark-mode .action-btn:hover {
-  background-color: #30363D;
-}
-
-.dark-mode .action-btn.active {
-  background-color: #42b983;
-  border-color: #42b983;
-  color: white;
-}
-
-.dark-mode .filter-pill {
-  background-color: #21262D;
-  border-color: #30363D;
-  color: #E6E8EB;
-}
-
-.dark-mode .filter-pill:hover {
-  background-color: #21262D;
-  color: #E6E8EB;
-}
-
-.dark-mode .filter-pill.active {
-  background-color: #42b983;
-  border-color: #42b983;
-  color: white;
-}
-
-.dark-mode .drawer-toggle-btn {
-  background-color: #161B22;
-  border-color: #30363D;
-  color: #E6E8EB;
-}
-
-.dark-mode .tasks-wrapper {
-  background-color: #161B22;
-  border-color: #30363D;
-}
-
-.dark-mode .tasks-header-bar {
-  background-color: #21262D;
-  border-bottom-color: #30363D;
-  color: #E6E8EB;
 }
 
 .fade-enter-active,
