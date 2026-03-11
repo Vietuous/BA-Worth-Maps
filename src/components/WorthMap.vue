@@ -2030,28 +2030,25 @@ const loadGraphDataHandler = (data) => {
   // Use setTimeout to allow the UI to render the spinner before heavy lifting
   setTimeout(() => {
     // 2. Stop simulation temporarily
-    if (simulation) simulation.stop();
+    if (simulation) simulation.stop(); // Stop simulation before data change
 
     // 3. Load data into store
     loadGraphData(data);
+    initialViewParsed.value = false; // Signal that a new view needs to be framed
 
     // 4. Check for empty data
     const { nodes } = getRawData();
     if (nodes.length === 0) {
       isInitializing.value = false;
-      initializeDefaultGraph();
+      initializeDefaultGraph(); // Handle empty case
       return;
     }
 
-    initialViewParsed.value = false;
-
     // 5. Update and finish
-    updateGraph();
-
-    // Force layout update next tick
+    isInitializing.value = false; // Unblock rendering and hide spinner
     nextTick(() => {
+      updateGraph(); // Now this will run
       zoomToFit();
-      isInitializing.value = false;
     });
   }, 50);
 };
