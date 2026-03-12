@@ -87,7 +87,7 @@ const openAnswers = ref({ likes: '', improvements: '' });
 const customAnswers = ref({});
 const isSubmitting = ref(false);
 
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwNmzVoZls1Lh2q9RnxUHnEhEC6PWGLHOOIeL1E5axdWixkqdYIQQOY1F5oRla3lGgx/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyDeZmR7Ln0JCwrZXYn-MRLMOuuOMlUdWL_CiPlzB5hX0UyTSgDBw1IWehYYlfR2rIJ/exec";
 
 watch(() => props.show, (val) => {
     if (val) {
