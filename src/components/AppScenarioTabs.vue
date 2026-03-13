@@ -92,7 +92,7 @@ const menuStyle = computed(() => {
     const y = menu.value.y;
     // If close to bottom, show above
     if (y > window.innerHeight - 150) {
-        return { left: `${x}px`, bottom: `${window.innerHeight - y}px` };
+        return { left: `${x}px`, bottom: `${window.innerHeight - y}px`, top: 'auto' };
     }
     return { left: `${x}px`, top: `${y}px` };
 });
@@ -220,7 +220,8 @@ onUnmounted(() => {
     box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.2);
     padding: 5px 0;
     border-radius: 4px;
-    z-index: 1000;
+    z-index: 3000;
+    /* Higher than tabs (2000) to avoid being covered */
     min-width: 150px;
 }
 

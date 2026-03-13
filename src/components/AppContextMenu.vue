@@ -208,6 +208,11 @@ hr {
     color: #E6E8EB;
 }
 
+/* Specifically override for danger/delete buttons in dark mode */
+.context-menu.dark-mode button.danger-text {
+    color: #ff4d4f;
+}
+
 .context-menu.dark-mode button:hover {
     background: #3E4148;
 }

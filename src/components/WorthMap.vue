@@ -141,7 +141,9 @@ const screenMousePosition = ref({ x: 0, y: 0 });
 const currentZoomTransform = ref(d3.zoomIdentity);
 const editingNode = ref(null);
 const graphUpdateTrigger = ref(0);
+const isUndoRedo = ref(false);
 let lastEmittedStats = null;
+let tickCounter = 0;
 
 // State for UI Overlays
 const contextMenu = ref({ visible: false, x: 0, y: 0, item: null, type: null, view: 'main' });
@@ -223,6 +225,8 @@ const {
   loadGraphData,
   getGraphData,
   createNode,
+  undo,
+  redo,
 } = useGraphData();
 
 // IMPORTANT: We pass the Ref directly to useValidation
@@ -482,7 +486,7 @@ const updateSpotlight = () => {
   overlay.attr("d", path).attr("fill-rule", "evenodd");
 };
 
-const updateGraph = () => {
+const updateGraph = (restorePositions = false) => {
   if (isInitializing.value) return;
   if (isInternalUpdate.value) return;
   if (!svg) return;
@@ -532,15 +536,22 @@ const updateGraph = () => {
     const centerY = h / 2;
     const spacing = getLayerSpacing();
 
+    const shouldPreservePositions = !restorePositions && !isUndoRedo.value;
+    isUndoRedo.value = false;
+
     nodes.forEach(n => {
       const old = oldNodes.get(n.id);
-      if (old) {
+      if (shouldPreservePositions && old) {
         n.x = old.x;
         n.y = old.y;
         n.vx = old.vx;
         n.vy = old.vy;
         n.fx = old.fx; // Fix: Fix position so nodes don't jump
         n.fy = old.fy;
+      } else {
+        // Undo/Redo or Reset: Force positions to fixed values immediately to prevent jumps
+        if (n.fx != null) n.x = n.fx;
+        if (n.fy != null) n.y = n.fy;
       }
 
       // Layout Logic: ALWAYS snap Y position to the correct layer
@@ -624,8 +635,7 @@ const updateGraph = () => {
   // 0. Draw Zones (Visible in Sketch for orientation)
   if (props.mode !== 'evaluation' || props.analyzingView === 'zones') {
     // Cleanup Axis elements if switching from Axis view
-    gridLayer.selectAll(".axis-element").remove();
-
+    gridLayer.selectAll(".axis-element").remov
     const h = mapContainer.value?.clientHeight || 800;
     const centerY = h / 2;
     const zoneWidth = 40000; // Sufficiently wide
@@ -770,6 +780,15 @@ const updateGraph = () => {
     // We only use the simulation tick to update the DOM
 
     simulation.alpha(0.3).restart();
+
+    // Immediate visual update for Undo/Redo to prevent lag
+    if (restorePositions) {
+      simulation.tick();
+      ticked();
+      // Force UI updates that might be throttled in ticked()
+      updateControlPositions();
+      updateMinimap();
+    }
   }
 
   // 2. Bind Links
@@ -1058,10 +1077,10 @@ const updateGraph = () => {
 
     if (props.mode !== "evaluation") {
       // Calculate Y to prevent overflow
-      const menuHeight = 220; // Approx height of context menu
+      const menuHeight = 280; // Safety margin for menu height
       const windowHeight = window.innerHeight;
       let y = event.clientY;
-      if (y + menuHeight > windowHeight) y = windowHeight - menuHeight - 10;
+      if (y + menuHeight > windowHeight) y = y - menuHeight; // Shift up if near bottom
 
       contextMenu.value = {
         visible: true,
@@ -1092,9 +1111,12 @@ function enterEditMode(nodeSelection, d) {
     .attr("class", "node-input")
     .property("value", d.name)
     .on("blur", function () {
-      d.name = this.value;
-      if (!d.name.trim()) d.name = "New Node";
-      updateNode(d.id, { name: d.name }); // Persist name change
+      const newName = this.value;
+      if (newName !== d.name) {
+        d.name = newName;
+        if (!d.name.trim()) d.name = "New Node";
+        updateNode(d.id, { name: d.name }); // Persist name change only if changed
+      }
       editingNode.value = null;
       updateGraph(); // Update for dynamic width
       div.html(d.name).style("display", "flex");
@@ -1237,6 +1259,27 @@ const getNodeIntersection = (source, target) => {
     // Hits left or right
     const edgeX = (dx > 0) ? -w : w; // If target is right (dx>0), hit left (-w)
     return { x: target.x + edgeX, y: target.y + edgeX * slope };
+  }
+};
+
+const ticked = () => {
+  tickCounter++;
+
+  // Throttle updates
+  if (tickCounter % 4 === 0) updateControlPositions();
+  updateSpotlight();
+  if (tickCounter % 4 === 0) updateMinimap();
+
+  if (linkSelection && nodeSelection) {
+    const linkPathGenerator = (d) => {
+      const source = d.source;
+      const target = d.target;
+      const end = getNodeIntersection(source, target);
+      return `M${source.x},${source.y} L${end.x},${end.y}`;
+    };
+    if (linkPathsVisible) linkPathsVisible.attr("d", linkPathGenerator);
+    if (linkPathsHit) linkPathsHit.attr("d", linkPathGenerator);
+    nodeSelection.attr("transform", (d) => `translate(${d.x},${d.y})`);
   }
 };
 
@@ -1390,43 +1433,7 @@ onMounted(() => {
 
   // Forces are set in updateGraph() depending on mode
 
-  let tickCounter = 0;
-  simulation.on("tick", () => {
-    tickCounter++;
-
-    // Update Button Positions on Tick (smooth movement)
-    // Throttle Controls (Performance Optimization: only every 4th frame)
-    if (tickCounter % 4 === 0) updateControlPositions();
-
-    updateSpotlight(); // Update spotlight holes as nodes move
-
-    // Throttle Minimap (Performance Optimization: only every 4th frame)
-    if (tickCounter % 4 === 0) updateMinimap();
-
-    // Use the selections we updated in updateGraph
-    if (linkSelection && nodeSelection) {
-      // Re-select to be safe if DOM changed, but usually variables are fine
-      // const currentNodes = nodeLayer.selectAll("g.node"); 
-
-      // Fix: Explicitly update both paths to ensure hitboxes don't lag
-      const linkPathGenerator = (d) => {
-        // Calculate intersection to make arrow visible at node border
-        const source = d.source;
-        const target = d.target;
-        const end = getNodeIntersection(source, target);
-        return `M${source.x},${source.y} L${end.x},${end.y}`;
-      };
-
-      // Use cached selections to avoid DOM query overhead
-      if (linkPathsVisible) linkPathsVisible.attr("d", linkPathGenerator);
-      if (linkPathsHit) linkPathsHit.attr("d", linkPathGenerator);
-
-      nodeSelection.attr("transform", (d) => {
-        // No more boundary constraints, as map is zoomable/pannable
-        return `translate(${d.x},${d.y})`;
-      });
-    }
-  });
+  simulation.on("tick", ticked);
 
   // Drag Handler
   let isDrawing = false;
@@ -1904,6 +1911,29 @@ const resetGraph = () => {
   graphUpdateTrigger.value++;
 };
 
+const handleUndo = async () => {
+  if (typeof undo === 'function') {
+    // Suppress the generic watcher update which preserves positions (we want to restore them)
+    isInternalUpdate.value = true;
+    undo();
+    clearSelection(); // Prevent stale highlights from blocking view
+    await nextTick(); // Allow watcher to fire and be ignored
+    isInternalUpdate.value = false;
+    updateGraph(true); // Immediate update with restorePositions=true
+  }
+};
+
+const handleRedo = async () => {
+  if (typeof redo === 'function') {
+    isInternalUpdate.value = true;
+    redo();
+    clearSelection();
+    await nextTick(); // Allow watcher to fire and be ignored
+    isInternalUpdate.value = false;
+    updateGraph(true); // Immediate update with restorePositions=true
+  }
+};
+
 const smartLayout = () => {
   if (!simulation) return;
   const h = mapContainer.value?.clientHeight || 800;
@@ -2200,6 +2230,30 @@ const initializeDefaultGraph = () => {
 
 const forceUpdate = () => updateGraph();
 
+// Keyboard Shortcuts for Undo/Redo
+const handleKeydown = (e) => {
+  // Ignore if user is typing in an input field
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+  if (e.ctrlKey || e.metaKey) {
+    if (e.key === 'z' && !e.shiftKey) {
+      e.preventDefault();
+      handleUndo();
+    } else if (e.key === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z')) {
+      e.preventDefault();
+      handleRedo();
+    }
+  }
+};
+
+onMounted(() => {
+  window.addEventListener('keydown', handleKeydown);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeydown);
+});
+
 defineExpose({
   updateNodeData: (id, changes) => updateNode(id, changes),
   addNodeAt,
@@ -2214,7 +2268,9 @@ defineExpose({
   clearSelection,
   highlightLevel,
   smartLayout,
-  forceUpdate
+  forceUpdate,
+  undo: handleUndo,
+  redo: handleRedo
 });
 </script>
 
