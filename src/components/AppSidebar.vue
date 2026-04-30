@@ -1,3 +1,10 @@
+<!-- 
+  SIDEBAR COMPONENT
+  
+  The primary interface for "Details-on-Demand". 
+  - Mapping Mode: Enables rich text input for evidence and observations.
+  - Evaluation Mode: Displays aggregated path analysis and proof chains.
+-->
 <template>
   <aside class="sidebar" :class="{ open: isOpen, 'dark-mode': isDarkMode }">
     <div class="sidebar-header">
@@ -104,8 +111,13 @@ const props = defineProps({
 import { computed, nextTick, ref, watch } from 'vue';
 import { safeLevels } from './useStyling';
 
+
 const emit = defineEmits(['update-node', 'highlight-level']);
 
+/**
+ * UI Formatter: getLayerLabel
+ * Converts methodology IDs to user-friendly titles.
+ */
 const getLayerLabel = (type) => {
   const level = safeLevels.find(l => l.id === type);
   if (!level) return type;
@@ -115,6 +127,10 @@ const getLayerLabel = (type) => {
 
 const evidenceInput = ref(null);
 
+/**
+ * UX Helper: autoResize
+ * Dynamically adjusts textarea height to prevent awkward nested scrolling.
+ */
 const autoResize = () => {
   if (evidenceInput.value) {
     evidenceInput.value.style.height = 'auto';
@@ -126,6 +142,9 @@ watch(() => props.selectedNode, () => {
   nextTick(autoResize);
 });
 
+/**
+ * Event Proxies: Sync Sidebar inputs with the global Graph State.
+ */
 const updateEvidence = (event) => {
   emit('update-node', {
     id: props.selectedNode.id,
@@ -147,6 +166,10 @@ const updateObservationReference = (event) => {
   });
 };
 
+/**
+ * Logic: aggregatedEvidence
+ * Collates all evidence along a causal path into a summary view for presentations.
+ */
 const aggregatedEvidence = computed(() => {
   if (!props.sortedSelectedPath?.length) return "";
   return props.sortedSelectedPath

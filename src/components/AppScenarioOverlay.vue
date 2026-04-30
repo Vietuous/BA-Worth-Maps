@@ -6,7 +6,7 @@
                     <span class="header-title">Study Tasks</span>
                     <div class="header-controls">
                         <button class="icon-btn" @click="isCollapsed = !isCollapsed">{{ isCollapsed ? 'Show' : '_'
-                            }}</button>
+                        }}</button>
                         <button class="icon-btn" @click="$emit('close')">×</button>
                     </div>
                 </div>
@@ -31,6 +31,8 @@ defineProps({
 
 defineEmits(['next', 'end', 'close']);
 
+// Reactive State: isCollapsed
+// Controls the collapsed/expanded state of the task card, allowing users to minimize it.
 import { ref } from 'vue';
 const isCollapsed = ref(false);
 </script>

@@ -1,4 +1,10 @@
 // c:\Users\Destiny\worth-map-tool\src\components\useStyling.js
+/**
+ * STYLING UTILITIES MODULE
+ *
+ * Provides helper functions and constants for consistent styling and layout
+ * of Worth Map elements, especially related to ARROWS methodology layers.
+ */
 import * as d3 from 'd3'
 
 export const safeLevels = [
@@ -50,6 +56,10 @@ export const linkPalette = [
 
 export const getLinkPalette = () => linkPalette
 
+/* -------------------------------------------------------------------------- */
+/* --- DYNAMIC MEASUREMENT (CANVAS) ---                                       */
+/* -------------------------------------------------------------------------- */
+
 // Cache for text widths for performance optimization
 const widthCache = new Map()
 
@@ -70,6 +80,10 @@ export const getTextWidth = (text, font = '14px sans-serif') => {
   widthCache.set(key, metrics.width)
   return metrics.width
 }
+
+/* -------------------------------------------------------------------------- */
+/* --- GEOMETRIC CALCULATIONS ---                                             */
+/* -------------------------------------------------------------------------- */
 
 export const safeGetNodeWidth = (d) => {
   const text = d.name || ''

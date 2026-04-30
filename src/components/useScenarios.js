@@ -1,4 +1,12 @@
 // c:\Users\Destiny\worth-map-tool\src\components\useScenarios.js
+/**
+ * SCENARIO MANAGEMENT COMPOSABLE
+ *
+ * Manages multiple "Worth Map" scenarios, including:
+ * - Loading and saving scenarios to localStorage.
+ * - Switching between scenarios.
+ * - CRUD operations (Add, Delete, Rename, Clone) for scenarios.
+ */
 import { onMounted, ref, watch } from 'vue'
 import { useGraphData } from './useGraphData'
 
@@ -6,9 +14,17 @@ const SCENARIOS_STORAGE_KEY = 'worth-map-scenarios-v1'
 
 export function useScenarios() {
   const { getGraphData } = useGraphData()
+  // Reactive State: scenarios
+  // An array of scenario objects, each containing an ID, name, and the graph data.
   const scenarios = ref([{ id: 1, name: 'Draft 1', data: null }])
+  // Reactive State: currentScenarioId
+  // The ID of the currently active scenario.
   const currentScenarioId = ref(1)
   const isSwitching = ref(false) // Lock to prevent watcher from overwriting data during switch
+
+  /* -------------------------------------------------------------------------- */
+  /* --- LOCAL STORAGE PERSISTENCE ---                                          */
+  /* -------------------------------------------------------------------------- */
 
   // Load scenarios from local storage
   onMounted(() => {
@@ -55,6 +71,10 @@ export function useScenarios() {
     },
     { deep: true }
   )
+
+  /* -------------------------------------------------------------------------- */
+  /* --- SCENARIO ORCHESTRATION ---                                             */
+  /* -------------------------------------------------------------------------- */
 
   const switchScenario = (id) => {
     if (currentScenarioId.value === id) return

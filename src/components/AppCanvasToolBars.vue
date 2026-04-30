@@ -13,7 +13,7 @@
                                     @click="$emit('toggle-layer', layer.id)" :title="layer.title">
                                     {{ layer.text }}
                                     <span v-if="layerCounts[layer.id]" class="count-badge">{{ layerCounts[layer.id]
-                                        }}</span>
+                                    }}</span>
                                 </button>
                             </div>
                         </div>
@@ -51,6 +51,11 @@
 </template>
 
 <script setup>
+/**
+ * CANVAS TOOLBARS COMPONENT
+ * 
+ * Provides methodology-specific filtering and global graph actions (e.g., layout optimization, tutorial toggle).
+ */
 import { computed, ref } from 'vue';
 
 const props = defineProps({
@@ -66,6 +71,12 @@ defineEmits(['toggle-layer', 'toggle-tutorial', 'smart-layout', 'toggle-dark-mod
 const isFilterPanelOpen = ref(true);
 const isActionsPanelOpen = ref(true);
 
+/**
+ * Constant: FILTER_DEFINITIONS
+ * 
+ * Static configuration for the ARROWS methodology filter groups.
+ * Organizes layers into logical columns for the UI display.
+ */
 // Static definitions for filter groups
 const FILTER_DEFINITIONS = [
     {
@@ -95,6 +106,10 @@ const FILTER_DEFINITIONS = [
     }
 ];
 
+/**
+ * Computed: filterGroups
+ * Dynamically generates filter definitions, updating the "NSHC" label text based on its current visibility state.
+ */
 const filterGroups = computed(() => [
     { ...FILTER_DEFINITIONS[0], layers: [{ ...FILTER_DEFINITIONS[0].layers[0], text: props.visibleLayers.includes('nshc') ? 'Hide' : 'Show' }] },
     FILTER_DEFINITIONS[1],
@@ -102,6 +117,10 @@ const filterGroups = computed(() => [
     FILTER_DEFINITIONS[3]
 ]);
 
+/**
+ * Computed: layerCounts
+ * Extracts and provides the current node density per layer from `graphStats` for numeric badges.
+ */
 const layerCounts = computed(() => {
     return props.graphStats?.nodeCounts || {};
 });

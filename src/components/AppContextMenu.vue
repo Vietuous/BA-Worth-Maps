@@ -60,22 +60,43 @@ const props = defineProps({
 
 const emit = defineEmits(['update:view', 'action']);
 
+/**
+ * Computed: style
+ * Dynamically calculates the absolute CSS `top` and `left` (or `bottom`) properties for the context menu.
+ * This positions the menu correctly at the mouse click location and prevents it from going off-screen.
+ */
 const style = computed(() => ({
     top: `${props.y}px`,
     left: `${props.x}px`
 }));
 
+// Constant: colors
+// An array of predefined colors (`linkPalette`) used for the color selection grid in the context menu.
 const colors = linkPalette;
 
+// Reactive State: deleteConfirm
+// Manages the UI state for node deletion, requiring a second click to confirm the action.
 const deleteConfirm = ref(false);
+// Reactive State: linkDeleteConfirm
+// Manages the UI state for link deletion, requiring a second click to confirm the action.
 const linkDeleteConfirm = ref(false);
 
-// Reset confirmation state when menu closes or item changes
+// Watcher: Resets confirmation state when menu closes or item changes.
+// This ensures that if the user opens the menu, clicks "Delete", then closes and reopens,
+// they will need to confirm deletion again.
 watch(() => props.visible, () => {
     deleteConfirm.value = false;
     linkDeleteConfirm.value = false;
 });
 
+/**
+ * UI Action Handler
+ * 
+ * This is the **confirmation state machine** for destructive actions (delete).
+ * It intercepts "delete" actions, first setting a confirmation flag (`deleteConfirm` or `linkDeleteConfirm`).
+ * Only upon a second click (when the flag is true) does it emit the actual action to the parent,
+ * preventing accidental data loss.
+ */
 const emitAction = (action, payload) => {
     if (action === 'delete') {
         if (!deleteConfirm.value) {

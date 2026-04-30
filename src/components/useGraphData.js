@@ -1,8 +1,17 @@
 // c:\Users\Destiny\worth-map-tool\src\components\useGraphData.js
+/**
+ * GRAPH DATA MANAGEMENT COMPOSABLE
+ *
+ * Manages the core graph data (nodes and links) including:
+ * - CRUD operations for nodes and links.
+ * - Undo/Redo history.
+ * - Data persistence and loading.
+ */
 import { computed, reactive, ref, toRaw } from 'vue'
 import { safeLevels } from './useStyling'
 
-// Singleton State
+// Reactive State: graphData
+// The central store for all nodes and links in the current Worth Map.
 const graphData = reactive({
   nodes: [],
   links: []
@@ -15,13 +24,28 @@ const future = ref([])
 // FIX: toRaw removes the Vue proxy so structuredClone works safely
 const clone = (data) => structuredClone(toRaw(data))
 
+/**
+ * Core Data Composable
+ * Manages the graph state and the Undo/Redo engine.
+ */
 export function useGraphData() {
+  /* -------------------------------------------------------------------------- */
+  /* --- UNDO / REDO ENGINE ---                                                 */
+  /* -------------------------------------------------------------------------- */
+
+  /**
+   * Snapshots the current state before a mutation.
+   * Limits history to 20 entries to manage memory.
+   */
   const saveState = () => {
     if (history.value.length > 20) history.value.shift()
     history.value.push(clone(graphData))
     future.value = []
   }
 
+  /**
+   * Pops the last state from history and refills the reactive arrays.
+   */
   const undo = () => {
     if (history.value.length === 0) return
     future.value.push(clone(graphData))
@@ -38,6 +62,10 @@ export function useGraphData() {
     graphData.nodes.splice(0, graphData.nodes.length, ...next.nodes)
     graphData.links.splice(0, graphData.links.length, ...next.links)
   }
+
+  /* -------------------------------------------------------------------------- */
+  /* --- NODE OPERATIONS ---                                                    */
+  /* -------------------------------------------------------------------------- */
 
   const addNodeToData = (node) => {
     saveState()
@@ -59,6 +87,10 @@ export function useGraphData() {
       if (node) Object.assign(node, changes)
     })
   }
+
+  /* -------------------------------------------------------------------------- */
+  /* --- LINK OPERATIONS ---                                                    */
+  /* -------------------------------------------------------------------------- */
 
   const addLinkToData = (link) => {
     saveState()
@@ -111,6 +143,10 @@ export function useGraphData() {
     })
     if (targetLink) targetLink.color = newColor
   }
+
+  /* -------------------------------------------------------------------------- */
+  /* --- PERSISTENCE & FACTORIES ---                                            */
+  /* -------------------------------------------------------------------------- */
 
   const resetGraphData = () => {
     // No saveState here if we want to reset completely,

@@ -1,13 +1,39 @@
 import * as d3 from 'd3'
 import { safeGetNodeWidth } from './useStyling'
 
+/**
+ * LAYOUT ALGORITHMS MODULE
+ *
+ * This module provides algorithms for automatically arranging nodes in a Worth Map,
+ * aiming for a clear, readable, and methodologically consistent layout.
+ */
+
+/**
+ * Algorithm: runSmartLayout
+ *
+ * Implements a barycenter-based layout heuristic, inspired by Sugiyama-style graph drawing.
+ * It iteratively refines node positions to minimize edge crossings and improve readability.
+ *
+ * @param {d3.Simulation} simulation - The D3 force simulation instance.
+ * @param {Array} nodes - The array of node objects.
+ * @param {Array} links - The array of link objects.
+ */
 export const runSmartLayout = (simulation, nodes, links) => {
   if (!simulation) return
 
   const GAP = 40
 
+  /* -------------------------------------------------------------------------- */
+  /* --- LAYER CLUSTERING ---                                                   */
+  /* -------------------------------------------------------------------------- */
+
   // 1. Group nodes into virtual layers based on Type AND Y-Position (Row)
   // This handles the HOE split (Row 1 vs Row 2) automatically
+  /**
+   * Internal Logic: virtualLayers
+   *
+   * Groups nodes into logical "rows" based on their type and rounded Y-position.
+   */
   const virtualLayers = new Map()
 
   nodes.forEach((n) => {
@@ -30,6 +56,14 @@ export const runSmartLayout = (simulation, nodes, links) => {
   const layerIds = sortedLayers.map((l) => l.id)
   const layersMap = Object.fromEntries(sortedLayers.map((l) => [l.id, l.nodes]))
 
+  /* -------------------------------------------------------------------------- */
+  /* --- BARYCENTER CALCULATION ---                                             */
+  /* -------------------------------------------------------------------------- */
+
+  /**
+   * Helper: getNeighbors
+   * Finds connected nodes within a specific target layer.
+   */
   const getNeighbors = (node, targetLayerId) => {
     const neighbors = []
     links.forEach((l) => {
@@ -47,6 +81,14 @@ export const runSmartLayout = (simulation, nodes, links) => {
     return neighbors
   }
 
+  /* -------------------------------------------------------------------------- */
+  /* --- ITERATIVE POSITIONING (SWEEP) ---                                      */
+  /* -------------------------------------------------------------------------- */
+
+  /**
+   * Heuristic: Barycenter Method
+   * Iteratively adjusts node X-positions based on the average X-position of their neighbors in adjacent layers.
+   */
   // Barycenter Heuristic (multiple passes for smoothing)
   for (let i = 0; i < 8; i++) {
     // Down sweep
@@ -78,6 +120,14 @@ export const runSmartLayout = (simulation, nodes, links) => {
   simulation.alpha(0.3).restart()
 }
 
+/* -------------------------------------------------------------------------- */
+/* --- HORIZONTAL DISTRIBUTION ---                                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Helper: distributeLayer
+ * Evenly spaces nodes horizontally within a given layer, ensuring a minimum gap.
+ */
 function distributeLayer(layer, gap) {
   let totalWidth = 0
   layer.forEach((n) => {

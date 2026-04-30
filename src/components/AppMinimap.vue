@@ -8,6 +8,10 @@
 </template>
 
 <script setup>
+/**
+ * MINIMAP COMPONENT
+ * Provides spatial orientation and rapid navigation for large graphs. Uses D3.js to render a low-fidelity overview of the main canvas.
+ */
 import * as d3 from "d3";
 import { ref } from "vue";
 import { safeGetColor } from "./useStyling";
@@ -19,11 +23,22 @@ const props = defineProps({
 
 const emit = defineEmits(['minimap-click']);
 
+// Reactive State: collapsed
+// Controls the visibility state of the minimap itself (collapsed/expanded).
 const collapsed = ref(false);
+// Template Ref: svgRef
+// Reference to the SVG element where the minimap is drawn.
 const svgRef = ref(null);
+// Template Ref: minimapContainer
+// Reference to the main container div of the minimap, used for client width/height.
 const minimapContainer = ref(null);
+// Reactive State: minimapTransform
+// Stores the D3 zoom identity for the minimap, representing its current scale and translation.
 const minimapTransform = ref(d3.zoomIdentity);
 
+/**
+ * Calculates the spatial extent of the graph including padding.
+ */
 const calculateGraphBounds = (nodes, padding = 0) => {
     if (!nodes || nodes.length === 0) return { x: [0, 1], y: [0, 1] };
     const x = d3.extent(nodes, d => d.x);
@@ -34,6 +49,13 @@ const calculateGraphBounds = (nodes, padding = 0) => {
     };
 };
 
+/**
+ * Utility: calculateMinimapTransform
+ * Computes the D3 transform (scale and translate) required to fit the calculated `graphBounds` into the fixed dimensions of the minimap UI.
+ */
+/**
+ * Computes the D3 transform needed to fit the graph bounds into the minimap UI.
+ */
 const calculateMinimapTransform = (bounds, width, height) => {
     const dx = bounds.x[1] - bounds.x[0];
     const dy = bounds.y[1] - bounds.y[0];
@@ -43,6 +65,13 @@ const calculateMinimapTransform = (bounds, width, height) => {
     return d3.zoomIdentity.translate(translateX, translateY).scale(scale);
 };
 
+/**
+ * Exposed Function: update
+ * 
+ * The core rendering function for the minimap. It is called by the parent `WorthMap` component.
+ * It receives the current graph state (nodes, links, main canvas transform) and redraws a simplified
+ * version of the graph, along with a "viewport rectangle" indicating the visible area of the main canvas.
+ */
 const update = (nodes, links, mainTransform, mainWidth, mainHeight, highlightInfo = {}) => {
     if (!svgRef.value || !minimapContainer.value || !nodes || nodes.length === 0) return;
 
@@ -109,6 +138,13 @@ const update = (nodes, links, mainTransform, mainWidth, mainHeight, highlightInf
         .attr("height", viewH * mmTransform.k);
 };
 
+/**
+ * Event Handler: handleClick
+ * 
+ * Handles clicks on the minimap. It converts the minimap's pixel coordinates back into the main graph's coordinate space
+ * and emits a `minimap-click` event, enabling "teleportation" navigation.
+ * Coordinate Mapping: Minimap Pixels -> Graph Coordinates
+ */
 const handleClick = (event) => {
     const [mx, my] = d3.pointer(event, svgRef.value);
     const transform = minimapTransform.value;

@@ -1,11 +1,24 @@
 // c:\Users\Destiny\worth-map-tool\src\components\useLayout.js
+/**
+ * LAYOUT UTILITIES MODULE
+ *
+ * Provides helper functions for managing node positioning and resolving overlaps.
+ */
 import { safeGetNodeWidth, safeLevels } from './useStyling'
 
 // Pre-compute level map for O(1) access instead of .find() every time
 const levelMap = new Map(safeLevels.map((l) => [l.id, l]))
 
+/* -------------------------------------------------------------------------- */
+/* --- OVERLAP RESOLUTION ---                                                 */
+/* -------------------------------------------------------------------------- */
+
 export const resolveOverlaps = (nodes) => {
   const GAP = 40
+  /**
+   * Iterates through layers to find horizontal collisions.
+   * Pushes nodes to the right if they overlap their predecessor.
+   */
 
   // Group nodes by type using a Map to avoid object prototype overhead
   const layers = new Map()
@@ -44,6 +57,10 @@ export const resolveOverlaps = (nodes) => {
     }
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/* --- LAYER BOUNDARIES ---                                                   */
+/* -------------------------------------------------------------------------- */
 
 export const getLayerConstraints = (type, h) => {
   const centerY = h / 2

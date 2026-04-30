@@ -1,3 +1,9 @@
+/*
+TOPBAR COMPONENT
+
+Main application controller. Handles mode switching (Mapping vs Evaluation),
+Undo/Redo history, Search, and File I/O operations.
+*/
 <template>
     <header class="toolbar" :class="[currentMode, { 'dark-mode': isDarkMode }]">
         <div class="brand-container">
@@ -83,10 +89,19 @@ const emit = defineEmits([
 
 const fileInput = ref(null);
 
+/**
+ * UI Bridge: triggerImport
+ * Programmatically triggers the hidden native file picker to maintain a clean UI.
+ */
 const triggerImport = () => {
     fileInput.value.click();
 };
 
+/**
+ * Event Handler: handleFileChange
+ * Processes the raw file selection and emits the handle to the parent for 
+ * JSON hydration. Resets the input so the same file can be loaded twice.
+ */
 const handleFileChange = (event) => {
     const file = event.target.files[0];
     if (!file) return;

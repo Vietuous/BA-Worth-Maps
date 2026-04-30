@@ -1,3 +1,13 @@
+/**
+ * STUDY DATA MODULE
+ *
+ * Provides static data structures required for user research, usability
+ * testing, and standardized questionnaires.
+ */
+
+/* -------------------------------------------------------------------------- */
+/* --- USABILITY INSTRUMENTS ---                                              */
+/* -------------------------------------------------------------------------- */
 export const susQuestions = [
   'I think that I would like to use this system frequently.',
   'I found the system unnecessarily complex.',

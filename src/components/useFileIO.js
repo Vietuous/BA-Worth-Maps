@@ -1,14 +1,34 @@
+/**
+ * FILE I/O COMPOSABLE
+ *
+ * Manages file operations such as exporting and importing graph data in JSON format.
+ */
 import { useGraphData } from './useGraphData'
 
 export function useFileIO(worthMapComponentRef) {
   const { getGraphData, loadGraphData } = useGraphData()
 
+  /* -------------------------------------------------------------------------- */
+  /* --- EXPORT OPERATIONS ---                                                  */
+  /* -------------------------------------------------------------------------- */
+
+  /**
+   * Logic: handleExportJson
+   *
+   * Triggers the download of the current graph data as a JSON file.
+   * The filename includes the current scenario name and a timestamp.
+   */
   const handleExportJson = (filename = 'worth-map') => {
     const data = getGraphData()
     const jsonStr = JSON.stringify(data, null, 2)
     const blob = new Blob([jsonStr], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
 
+    /**
+     * Logic: handleImportJson
+     *
+     * Reads a JSON file selected by the user and loads its content into the graph.
+     */
     const a = document.createElement('a')
     a.href = url
     a.download = `${filename}.json`
@@ -16,6 +36,14 @@ export function useFileIO(worthMapComponentRef) {
     URL.revokeObjectURL(url)
   }
 
+  /* -------------------------------------------------------------------------- */
+  /* --- IMPORT OPERATIONS ---                                                  */
+  /* -------------------------------------------------------------------------- */
+
+  /**
+   * Logic: handleImportJson
+   * Reads file content as text and passes it to the graph loader.
+   */
   const handleImportJson = (file) => {
     if (!file) return
     const reader = new FileReader()
@@ -30,6 +58,16 @@ export function useFileIO(worthMapComponentRef) {
     reader.readAsText(file)
   }
 
+  /* -------------------------------------------------------------------------- */
+  /* --- CLOUD & SHARING UTILITIES ---                                          */
+  /* -------------------------------------------------------------------------- */
+
+  /**
+   * Logic: handleShare
+   *
+   * Compresses the graph data using the GZIP algorithm and encodes it
+   * into a Base64 string for URL-based sharing.
+   */
   const handleShare = async () => {
     const data = getGraphData()
     try {

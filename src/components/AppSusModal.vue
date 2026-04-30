@@ -69,6 +69,10 @@
 </template>
 
 <script setup>
+/**
+ * SUS EVALUATION MODAL
+ * Facilitates usability data collection based on the System Usability Scale (SUS).
+ */
 import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
@@ -78,17 +82,35 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['close', 'submit']);
-
+/**
+ * Computed: susStandardQuestions
+ * Filters the `props.questions` array to extract only the standard SUS questions (simple strings or objects without `options`).
+ */
 const susStandardQuestions = computed(() => props.questions.filter(q => typeof q === 'string' || !q.options));
+/**
+ * Computed: susCustomQuestions
+ * Filters the `props.questions` array to extract custom questions that include `options` (e.g., multiple-choice).
+ */
 const susCustomQuestions = computed(() => props.questions.filter(q => q.options));
 
+// Reactive State: answers
+// Stores the user's Likert scale responses (1-5) for the standard SUS questions.
 const answers = ref([]);
+// Reactive State: openAnswers
+// Stores free-text responses for open-ended feedback questions.
 const openAnswers = ref({ likes: '', improvements: '' });
+// Reactive State: customAnswers
+// Stores selected answers for custom (non-Likert) questions.
 const customAnswers = ref({});
+// Reactive State: isSubmitting
+// A boolean flag to manage the UI state during form submission, preventing multiple submissions.
 const isSubmitting = ref(false);
 
+// Constant: GOOGLE_SCRIPT_URL
+// The endpoint for submitting the survey data, typically a Google Apps Script URL.
 const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyP0NtSSWst7-c8bD_sZhbHuArtZ6AzfGKmAwZvCLm8JtF4PGP67CQlPg7cdTBEDSvu/exec";
 
+// Watcher: Resets form fields when the modal is opened.
 watch(() => props.show, (val) => {
     if (val) {
         // Reset on open
@@ -101,21 +123,42 @@ watch(() => props.show, (val) => {
     }
 });
 
+/**
+ * Algorithm: calculateSusScore
+ * 
+ * The SUS formula accounts for negatively phrased questions to ensure accuracy:
+ * - Odd-numbered questions (1, 3, 5...): Positively phrased. Score = (Response - 1).
+ * - Even-numbered questions (2, 4, 6...): Negatively phrased. Score = (5 - Response).
+ * 
+ * The total raw score (0-40) is then multiplied by 2.5 to get a percentile (0-100).
+ * This method ensures that all questions contribute equally to the final score,
+ * regardless of their phrasing.
+ */
 const calculateSusScore = () => {
     let score = 0;
     answers.value.forEach((val, index) => {
-        const response = val || 3; // Default to 3 if missed (neutral)
+        const response = val || 3; // Default to neutral if the user skipped a question
+
         if ((index + 1) % 2 === 1) {
-            // Odd questions (1, 3, 5...): score = response - 1
+            // Positive items: user choice directly correlates with usability
             score += (response - 1);
         } else {
-            // Even questions (2, 4, 6...): score = 5 - response
+            // Negative items: lower choices correlate with better usability
             score += (5 - response);
         }
     });
     return score * 2.5;
 };
 
+/**
+ * Network: submitForm
+ * 
+ * Collects all survey data, calculates the SUS score, bundles user metadata (browser, screen size),
+ * and sends an asynchronous POST request to the `GOOGLE_SCRIPT_URL`.
+ * 
+ * Uses "no-cors" mode to accommodate Google Apps Script restrictions, which typically
+ * do not allow standard CORS headers.
+ */
 const submitForm = async () => {
     if (isSubmitting.value) return;
     isSubmitting.value = true;

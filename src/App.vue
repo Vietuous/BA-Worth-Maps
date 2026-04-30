@@ -94,51 +94,71 @@ const currentScenarioName = computed(() => {
   return s ? s.name : 'worth-map';
 });
 
+/* -------------------------------------------------------------------------- */
+/* --- COMPONENT COMMUNICATION & SYNC ---                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Selection Proxy: handleNodeSelection
+ * 
+ * Receives node/path data from the WorthMap component. It acts as the 
+ * 'Details-on-Demand' controller, feeding the Sidebar with metadata.
+ */
 const handleNodeSelection = (payload) => {
   if (!payload) {
     selectedNode.value = null;
     selectedPath.value = [];
   } else {
-    // Support both simple node and {node, path} payload
+    // If payload contains an isolated path (Evaluation Mode), store it for the summary
     selectedNode.value = payload.node || payload;
     selectedPath.value = payload.path || [];
-    // Automatically open sidebar on selection (Details-on-Demand)
+
+    // UX: Ensure sidebar is visible when an item is selected
     if (!isSidebarOpen.value) isSidebarOpen.value = true;
   }
 };
 
 onMounted(() => {
-  // Initialize Graph with current scenario data (loaded by useScenarios)
+  /**
+   * Bootstrapping: onMounted
+   * 
+   * Loads the current scenario data into the WorthMap component on initial start.
+   */
   const current = scenarios.value.find(s => s.id === currentScenarioId.value);
   if (current && worthMapComponent.value) {
-    // Use nextTick to ensure WorthMap is fully mounted and ready
+    // nextTick ensures the D3 SVG container is ready before hydration
     import('vue').then(({ nextTick }) => {
       nextTick(() => worthMapComponent.value.loadGraphData(current.data));
     });
   }
 });
 
-// 3. Sync GraphData to Current Scenario (Debounced)
+/**
+ * State Synchronization: watch(graphData)
+ * 
+ * This is the critical persistence loop. It watches for any change in the
+ * reactive graph structure and syncs it to the scenario store.
+ */
 let syncTimeout = null;
 watch(graphData, (val) => {
   if (syncTimeout) clearTimeout(syncTimeout);
 
-  // Debounce to avoid freezing UI during heavy interactions
+  // Debounce (500ms) prevents excessive CPU/IO load during drag operations
   syncTimeout = setTimeout(() => {
     const current = scenarios.value.find(s => s.id === currentScenarioId.value);
     if (current) {
-      // Update the scenario data. This triggers the watcher in useScenarios to save to localStorage.
+      // JSON clone breaks proxy references to ensure clean data storage
       current.data = JSON.parse(JSON.stringify(val));
     }
   }, 500);
 }, { deep: true });
 
-/* 
-   REMOVED: Duplicate localStorage logic. 
-   useScenarios.js handles the actual saving to 'worth-map-scenarios-v1'.
-*/
-
-// 4. Watch for Scenario Switch to load data
+/**
+ * Tab Switching: watch(currentScenarioId)
+ * 
+ * When the user switches scenarios via the tab bar, this hook triggers
+ * a full state hydration of the WorthMap canvas.
+ */
 watch(currentScenarioId, (newId) => {
   const current = scenarios.value.find(s => s.id === currentScenarioId.value);
   if (current && worthMapComponent.value) {
@@ -146,26 +166,47 @@ watch(currentScenarioId, (newId) => {
   }
 });
 
+/* -------------------------------------------------------------------------- */
+/* --- EVENT HANDLERS & PROXIES ---                                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Metrics Handler: handleGraphStats
+ * 
+ * Updates global state based on methodology checks (e.g. if a valid chain exists).
+ */
 const handleGraphStats = (stats) => {
-  // Simple assignment, relying on WorthMap's debounce to prevent recursion
   canEvaluate.value = stats.hasFullChain;
   graphStats.value = stats;
 };
 
+/**
+ * Two-Way Binding: handleNodeUpdate
+ * 
+ * Bridges the gap between the Sidebar inputs and the D3 simulation nodes.
+ */
 const handleNodeUpdate = ({ id, changes }) => {
   if (worthMapComponent.value) {
     worthMapComponent.value.updateNodeData(id, changes);
   }
-  // Update local state immediately so Sidebar reflects changes
+  // Immediate local update so the UI doesn't lag
   if (selectedNode.value && selectedNode.value.id === id) {
     Object.assign(selectedNode.value, changes);
   }
 };
 
+/**
+ * Scenario Meta: handleScenarioRename
+ * 
+ * Passes name changes from the Tab bar down to the persistent scenario logic.
+ */
 const handleScenarioRename = ({ id, name }) => {
   updateScenarioName(id, name);
 };
 
+/**
+ * Application Mode Controller
+ */
 const setMode = (mode) => {
   currentMode.value = mode;
 };
@@ -186,6 +227,10 @@ const toggleLayer = (layer) => {
   }
 };
 
+/**
+ * WorthMap Proxy Methods
+ * These invoke internal D3 functions via the component's exposed API.
+ */
 const triggerZoom = (scaleFactor) => {
   if (worthMapComponent.value) {
     worthMapComponent.value.zoom(scaleFactor);
@@ -210,6 +255,11 @@ const handleReset = () => {
   }
 };
 
+/**
+ * Global Search Implementation
+ * 
+ * Queries the node list and commands the canvas to pan to the result.
+ */
 const executeSearch = () => {
   if (!searchQuery.value) return;
   const data = getGraphData();
@@ -219,6 +269,9 @@ const executeSearch = () => {
   }
 };
 
+/**
+ * Survey Success Handler
+ */
 const handleSusSubmit = () => {
   susSuccessMessage.value = "Successfully submitted, thank you for participating and for your time!";
   setTimeout(() => {
@@ -232,6 +285,15 @@ const toggleSus = () => {
   isMenuOpen.value = false;
 };
 
+/* -------------------------------------------------------------------------- */
+/* --- COMPUTED HELPERS ---                                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Methodology Sort: sortedSelectedPath
+ * 
+ * Sorts the causal path from NSHC (Start) to HOE (End) for display in the sidebar.
+ */
 const sortedSelectedPath = computed(() => {
   const order = ['nshc', 'feature', 'feature_req', 'quality', 'quality_req', 'hoe', 'hoe_req'];
   return [...selectedPath.value].sort((a, b) => {
@@ -239,6 +301,11 @@ const sortedSelectedPath = computed(() => {
   });
 });
 
+/**
+ * Survey Builder: extendedSusQuestions
+ * 
+ * Appends demographic questions to the standard SUS array.
+ */
 const extendedSusQuestions = computed(() => {
   const newQuestions = [
     {
@@ -252,11 +319,13 @@ const extendedSusQuestions = computed(() => {
       options: ["Novice", "Passing Knowledge", "Knowledgeable", "Expert"]
     }
   ];
-  // Insert new questions AFTER the standard 10 questions (susQuestions) and before open-ended (handled by modal)
   return [...susQuestions, ...newQuestions];
 });
 
-// Sidebar Resizing Logic
+/* -------------------------------------------------------------------------- */
+/* --- SIDEBAR RESIZE LOGIC ---                                               */
+/* -------------------------------------------------------------------------- */
+
 const sidebarWidth = ref(400); // Default width
 const isResizing = ref(false);
 

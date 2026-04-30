@@ -24,6 +24,11 @@
 </template>
 
 <script setup>
+/**
+ * SCENARIO TABS COMPONENT
+ * 
+ * Manages multiple "Worth Map" instances (Scenarios) with CRUD capabilities via an interactive tab bar and context menu.
+ */
 import { computed, nextTick, onBeforeUpdate, onMounted, onUnmounted, ref } from 'vue';
 
 
@@ -49,18 +54,29 @@ onBeforeUpdate(() => {
     editInput.value = [];
 });
 
+/**
+ * UI State: startEditing
+ * Activates the inline input field for a specific scenario tab, allowing the user to rename it.
+ */
 const startEditing = (scenario) => {
     editingId.value = scenario.id;
     editName.value = scenario.name;
     nextTick(() => {
         if (editInput.value && editInput.value[0]) {
             editInput.value[0].focus();
+            // Selects the text in the input field, making it easy for the user to overwrite.
+            // This is a common UX pattern for renaming.
+            // Using [0] because `editInput` is a ref to an array of elements (due to v-for).
             editInput.value[0].select();
         }
     });
 };
 
 const finishEditing = (scenario) => {
+    /**
+     * Persistence: finishEditing
+     * Validates the new name (trims whitespace) and emits the `update-name` event to the parent component for global state update.
+     */
     if (editingId.value === scenario.id) {
         if (editName.value.trim()) {
             emit('update-name', { id: scenario.id, name: editName.value });
@@ -70,12 +86,20 @@ const finishEditing = (scenario) => {
     }
 };
 
+/**
+ * UI State: cancelEditing
+ * Exits the rename mode without saving any changes.
+ */
 const cancelEditing = () => {
     editingId.value = null;
 };
 
 const menu = ref({ visible: false, x: 0, y: 0, id: null });
 
+/**
+ * Interaction: openContextMenu
+ * Displays the context menu at the mouse click position for a given scenario, storing its ID.
+ */
 const openContextMenu = (event, scenario) => {
     menu.value = {
         visible: true,
@@ -85,6 +109,10 @@ const openContextMenu = (event, scenario) => {
     };
 };
 
+/**
+ * UI Layout Helper: menuStyle
+ * Computes the CSS `left` and `top` (or `bottom`) properties for the context menu to prevent it from going off-screen.
+ */
 const menuStyle = computed(() => {
     if (!menu.value.visible) return {};
     // Prevent menu from going off-screen
@@ -97,6 +125,9 @@ const menuStyle = computed(() => {
     return { left: `${x}px`, top: `${y}px` };
 });
 
+/**
+ * UI Action Bridge: triggerRename
+ * Links the context menu's "Rename" action to the inline editing logic for the tab.
 const triggerRename = (id) => {
     const scenario = props.scenarios.find(s => s.id === id);
     if (scenario) {
@@ -105,10 +136,18 @@ const triggerRename = (id) => {
     closeMenu();
 };
 
+/**
+ * UI State: closeMenu
+ * Hides the context menu.
+ */
 const closeMenu = () => {
     menu.value.visible = false;
 };
 
+/**
+ * Event Listener: handleGlobalClick
+ * Closes the context menu when a click occurs anywhere outside of it.
+ */
 const handleGlobalClick = () => {
     if (menu.value.visible) closeMenu();
 };

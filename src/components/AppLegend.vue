@@ -31,6 +31,10 @@
 </template>
 
 <script setup>
+/**
+ * INTERACTION LEGEND COMPONENT
+ * Displays available keyboard shortcuts and active interaction modes to the user.
+ */
 defineProps({
     showLegend: Boolean,
     currentMode: String,

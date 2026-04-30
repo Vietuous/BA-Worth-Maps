@@ -2,16 +2,52 @@
 import { isRef, reactive } from 'vue'
 import { safeLevels } from './useStyling'
 
+/**
+ * ARROWS METHODOLOGY ENGINE
+ *
+ * This module enforces the structural and semantic rules of the
+ * Worth-Centered Design framework. It acts as a "Linter" for diagrams.
+ */
 export function useValidation(graphDataSource) {
   const nodeWarnings = reactive(new Set())
   const nodeStatus = reactive(new Map())
   const validationStats = reactive({ A: 0, D: 0 })
 
+  /* -------------------------------------------------------------------------- */
+  /* --- DATA NORMALIZATION ---                                                 */
+  /* -------------------------------------------------------------------------- */
+
+  /**
+   * Normalizer: Ensures the data source is accessible regardless of
+   * whether it's a Vue Ref or a raw object.
+   */
   const getGraphData = () => (isRef(graphDataSource) ? graphDataSource.value : graphDataSource)
 
   // Cache levels for O(1) lookup
   const levelMap = new Map(safeLevels.map((l) => [l.id, l]))
 
+  /* -------------------------------------------------------------------------- */
+  /* --- METHODOLOGICAL GRAMMAR ---                                             */
+  /* -------------------------------------------------------------------------- */
+
+  /**
+   * Logic: isValidConnection
+   *
+   * The "Grammar Rule" for Worth Maps. This function rigorously checks if a proposed connection
+   * between two nodes adheres to the ARROWS framework's structural constraints.
+   *
+   * Key rules enforced:
+   * 1.  **No Duplicate Links**: Prevents creating redundant connections between the same two nodes.
+   * 2.  **Layer Proximity**: Ensures connections only occur between adjacent or allowed layers (e.g., NSHC to Feature, Feature to Quality, etc.).
+   * 3.  **No Layer Skipping**: Prevents skipping intermediate layers in the causal chain (e.g., Feature directly to HOE without Quality).
+   * 4.  **Group Symmetry**: Maintains the separation between "Appreciated Worth" (AW) and "Requested Worth" (RW) paths.
+   * 5.  **Directionality**: Enforces the forward flow of causality (e.g., NSHC cannot follow HOE).
+   *
+   * @param {Object} source - The source node object.
+   * @param {Object} target - The target node object.
+   * @param {string} mode - The current application mode ('map' or 'sketch'). Validation is stricter in 'map' mode.
+   * @returns {boolean} True if the connection is valid, false otherwise.
+   */
   const isValidConnection = (source, target, mode) => {
     if (!source || !target || source.id === target.id) return false
 
@@ -78,6 +114,27 @@ export function useValidation(graphDataSource) {
     return false // Default deny
   }
 
+  /* -------------------------------------------------------------------------- */
+  /* --- GRAPH AUDITING & HEURISTICS ---                                        */
+  /* -------------------------------------------------------------------------- */
+
+  /**
+   * Algorithm: validateGraph (Graph Auditor)
+   *
+   * Scans the entire graph to assess the "Quality" of the Worth Map's argumentation.
+   * This function populates `nodeStatus` and `nodeWarnings` based on predefined criteria.
+   *
+   * Criteria for status levels:
+   * - **Level A (Verified)**: Node has substantial `evidenceNotes`.
+   * - **Level D (Placeholder/Semantic Warning)**: Node has a default/placeholder name (e.g., "New Node")
+   *   or lacks sufficient evidence.
+   *
+   * The assigned levels (A, B, C, D) are used for visual color-coding in the Evaluation Mode,
+   * providing immediate feedback on the map's completeness and rigor.
+   *
+   * Note: This is a simplified validation. A more advanced version would check for
+   * broken chains, missing links, or semantic inconsistencies.
+   */
   const validateGraph = () => {
     // Clear previous state
     nodeWarnings.clear()
@@ -120,6 +177,16 @@ export function useValidation(graphDataSource) {
     })
   }
 
+  /* -------------------------------------------------------------------------- */
+  /* --- UI FEEDBACK HELPERS ---                                                */
+  /* -------------------------------------------------------------------------- */
+
+  /**
+   * Utility: getValidationError
+   *
+   * Provides a human-readable error message for an invalid connection.
+   * This is used for real-time feedback during connection drawing.
+   */
   const getValidationError = (source, target) => {
     if (!isValidConnection(source, target, 'map')) {
       return 'Invalid connection for this methodology.'

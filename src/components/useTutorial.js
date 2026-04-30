@@ -1,4 +1,10 @@
 // c:\Users\Destiny\worth-map-tool\src\components\useTutorial.js
+/**
+ * TUTORIAL COMPOSABLE
+ *
+ * Manages the interactive tutorial for the Worth Map tool.
+ * It guides the user through basic interactions and methodology steps.
+ */
 import { computed, ref } from 'vue'
 
 // Centralized Tutorial Content
@@ -61,6 +67,10 @@ export const tutorialContent = {
     targetLayer: 'nshc'
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/* --- GRAPH VERIFICATION ---                                                 */
+/* -------------------------------------------------------------------------- */
 
 // Robust check for full chain (undirected) - Exported for use in WorthMap
 export const checkFullChain = (nodes, links) => {
@@ -145,8 +155,16 @@ export const countFullChains = (nodes, links) => {
   return count
 }
 
+/**
+ * Orchestrates the interactive tutorial state and validation guards.
+ */
 export function useTutorial(props, getNodes, editingNode, graphUpdateTrigger) {
   const tutorialStep = ref(null)
+
+  /* -------------------------------------------------------------------------- */
+  /* --- UX FEEDBACK & SPOTLIGHTS ---                                          */
+  /* -------------------------------------------------------------------------- */
+
   const tutorialHint = ref(null)
   const shakingNodeId = ref(null)
   const skippedSteps = ref(new Set())
@@ -194,6 +212,10 @@ export function useTutorial(props, getNodes, editingNode, graphUpdateTrigger) {
     return []
   })
 
+  /* -------------------------------------------------------------------------- */
+  /* --- VALIDATION GUARDS ---                                                  */
+  /* -------------------------------------------------------------------------- */
+
   const validateAction = (actionType, payload) => {
     if (!props.showTutorial) return true
     const step = tutorialStep.value
@@ -226,6 +248,10 @@ export function useTutorial(props, getNodes, editingNode, graphUpdateTrigger) {
     }
     return true
   }
+
+  /* -------------------------------------------------------------------------- */
+  /* --- TUTORIAL STATE MACHINE ---                                             */
+  /* -------------------------------------------------------------------------- */
 
   const updateTutorialStep = (nodes, links) => {
     if (nodes.length === 0) {
